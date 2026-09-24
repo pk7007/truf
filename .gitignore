@@ -1,0 +1,30 @@
+# Dependencies and build outputs
+node_modules/
+.next/
+out/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Secrets: commit only the safe example
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local tooling and logs
+.vercel/
+.sites-runtime/
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+
+# Local data and backups
+*.db
+*.sqlite
+*.sql.gz
+backups/
