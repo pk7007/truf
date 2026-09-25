@@ -8,7 +8,25 @@ TRUF Innovators: PRAVEEN KESHAVAN and S EVANDLE BENNI.
 
 ## Repository status
 
-Initial repository setup only. The application is not implemented or runnable yet.
+An interactive browser prototype is available in `prototype/`. The production application is not implemented yet.
+
+## Run the prototype
+
+From this repository folder, run:
+
+```sh
+node prototype/server.cjs
+```
+
+Open http://127.0.0.1:4173 in your browser. No dependency installation is required. Alternatively, open `prototype/index.html` directly; browser storage behaviour for local files can vary.
+
+Use the role selector to switch between Player, Owner, and Admin views. Try completing the badminton roster, creating a match, adding an owner slot, reviewing an owner application, and withdrawing for a demo refund. My profile includes a reset action.
+
+This prototype uses fictional seed data and browser localStorage. Payment success/failure and refunds are explicitly simulated, not Razorpay test API calls. There is no authentication, server-side authorization, shared database, AI integration, automated deadline processing, or real booking/settlement service. The role selector is for demonstration only. Do not use this prototype for actual bookings or financial transactions.
+
+## Prototype verification
+
+Browser checks completed: last-player join confirms a match; simulated payment failure is recoverable; withdrawal marks the demo payment refunded; match creation appears in the owner panel and reserves its slot; adding an owner slot works; owner approval persists across reload. JavaScript syntax and Git whitespace checks passed. These are prototype checks, not production integration or security verification.
 
 ## Planned application
 
