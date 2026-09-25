@@ -22,11 +22,27 @@ Open http://127.0.0.1:4173 in your browser. No dependency installation is requir
 
 Use the role selector to switch between Player, Owner, and Admin views. Try completing the badminton roster, creating a match, adding an owner slot, reviewing an owner application, and withdrawing for a demo refund. My profile includes a reset action.
 
-This prototype uses fictional seed data and browser localStorage. Payment success/failure and refunds are explicitly simulated, not Razorpay test API calls. There is no authentication, server-side authorization, shared database, AI integration, automated deadline processing, or real booking/settlement service. The role selector is for demonstration only. Do not use this prototype for actual bookings or financial transactions.
+This prototype uses fictional seed data and browser localStorage. Payment success/failure and refunds are explicitly simulated, not Razorpay test API calls. There is no authentication, server-side authorization, shared database, AI integration, background server scheduler, or real booking/settlement service. The role selector is for demonstration only. Do not use this prototype for actual bookings or financial transactions.
+
+## Prototype improvements
+
+- Distinct player, owner, and admin payment/discovery URLs preserve navigation context across reloads and browser history.
+- Booking-table names open match details; receipts link to matches; match details link back to payment history.
+- Match history retains withdrawals and cancellations. Hosts can edit match names while prices and times stay fixed.
+- Search includes sorting, open-place filtering, result counts, and a clear-filters empty state.
+- Validation rejects blank names, odd team sizes, unsupported badminton formats, incompatible sport/slot selections, and overlapping slots or joined games.
+- Cancellation clears player reservations and refunds local payment records. Duplicate joins and withdrawals are rejected.
+- Joining closes one hour before start (IST). Incomplete games expire and demo payments are refunded on page activity or the 30-second check while visible. Nothing runs when the app is closed; reopening reconciles deadlines.
+- Existing valid sample data is migrated in memory; another tab's storage changes update the view. This does not provide atomic multi-user concurrency.
+- Dialog labels, focus restoration, skip navigation, mobile sizing, and storage-error feedback improve usability.
+
+Run the regression suite with `node --test prototype/domain.test.cjs`. `domain.js` contains the tested rules; the standalone HTML embeds the same source, and a regression test checks they match.
 
 ## Prototype verification
 
-Browser checks completed: last-player join confirms a match; simulated payment failure is recoverable; withdrawal marks the demo payment refunded; match creation appears in the owner panel and reserves its slot; adding an owner slot works; owner approval persists across reload. JavaScript syntax and Git whitespace checks passed. These are prototype checks, not production integration or security verification.
+Initial browser checks completed: last-player join confirms a match; simulated payment failure is recoverable; withdrawal marks the demo payment refunded; match creation appears in the owner panel and reserves its slot; adding an owner slot works; owner approval persists across reload.
+
+Enhancement verification: 12 automated regression tests cover validation, reservation reuse, duplicate joins, refunds, cancellations, deadlines, completion, overlapping slots/games, time formatting, and embedded-source consistency. Browser checks cover receipt-to-match navigation, owner payment reloads, admin Back/Forward navigation, sport-dependent slot choices, blank-profile validation, search empty states, retained withdrawal history, and a 390-pixel mobile layout without page-level horizontal overflow. These are prototype checks, not production integration or security verification.
 
 ## Planned application
 
