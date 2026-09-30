@@ -26,6 +26,13 @@ This prototype uses fictional seed data and browser localStorage. Payment succes
 
 ## Prototype improvements
 
+- Admin and owner booking metrics: venue and match-date filters; created, confirmed/completed, cancelled/expired counts; recorded gross payments, refunds, and net collections; sport breakdown. Money is based on actual local payment records, not seeded roster commitments. The owner venue selector is a demo filter, not tenant authorization.
+- Player progress at `#progress`: attended-game history, sport filters, an eight-week activity strip, current/best weekly streaks, and 100 demo points per attended one-hour game. Weeks run Monday–Sunday in IST; the previous week's streak remains active until the current week ends.
+- Owner attendance recording is available for completed games that the demo player actually joined. One attendance per game; payments alone do not earn progress. Demo badges unlock at the first game, three consecutive weeks, and five games, and can be collected once. Badges have no cash value.
+- A clearly labelled sample-progress toggle previews three fictional games without saving attendance or allowing reward claims.
+
+Run all rules tests with `node --test prototype/domain.test.cjs prototype/progress.test.cjs`. The reporting tests cover deduplication, streak gaps, future-date exclusion, venue/date filters, attendance eligibility, and idempotent reward collection.
+
 - Distinct player, owner, and admin payment/discovery URLs preserve navigation context across reloads and browser history.
 - Booking-table names open match details; receipts link to matches; match details link back to payment history.
 - Match history retains withdrawals and cancellations. Hosts can edit match names while prices and times stay fixed.
