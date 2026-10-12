@@ -1,0 +1,319 @@
+import { reportRange } from "@/lib/report-range";
+import { Prisma } from "@prisma/client";
+import { currentUser, ownerScope, admin, AppError } from "@/server/access";
+import { canReadMatch } from "@/server/booking";
+import { db } from "@/server/db";
+export async function GET(request: Request) {
+  try {
+    const user = await currentUser(),
+      q = new URL(request.url).searchParams,
+      view = q.get("view") || "discover",
+      id = q.get("id");
+    if (id) {
+      await canReadMatch(user, id, q.get("token") || undefined);
+      const match = await db.match.findUniqueOrThrow({
+        where: { id },
+        include: {
+          slot: { include: { area: { include: { venue: true } } } },
+          participations: {
+            select: {
+              id: true,
+              userId: true,
+              status: true,
+              attendance: true,
+              user: { select: { name: true } },
+            },
+          },
+          events: { orderBy: { at: "asc" } },
+        },
+      });
+      return Response.json({
+        ...match,
+        invitationHash: undefined,
+        myId: user.id,
+        canManage:
+          (user.role === "ADMIN" && user.twoFactorEnabled) ||
+          (await db.membership.count({
+            where: {
+              userId: user.id,
+              organizationId: match.slot.area.venue.organizationId,
+              organization: { status: "APPROVED" },
+            },
+          })) > 0,
+      });
+    }
+    if (view === "notifications")
+      return Response.json(
+        await db.notification.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        }),
+      );
+    if (view === "settings")
+      return Response.json({
+        name: user.name,
+        email: user.email,
+        sports: user.sports,
+        locality: user.locality,
+        twoFactorEnabled: user.twoFactorEnabled,
+        memberships: await db.membership.findMany({
+          where: { userId: user.id },
+          include: { organization: true },
+        }),
+      });
+    if (view === "admin") {
+      await admin(user);
+      return Response.json({
+        organizations: await db.organization.findMany({
+          include: {
+            venues: true,
+            memberships: {
+              include: { user: { select: { name: true, email: true } } },
+            },
+          },
+          take: 100,
+        }),
+        jobs: await db.job.findMany({
+          where: { status: { in: ["FAILED", "RUNNING"] } },
+          take: 30,
+        }),
+        audit: await db.auditLog.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 50,
+        }),
+        users: await db.user.findMany({
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            suspended: true,
+            role: true,
+          },
+          take: 100,
+        }),
+      });
+    }
+    const isOwner = view === "venues" || view === "owner-bookings",
+      orgs = isOwner ? await ownerScope(user) : null;
+    if (view === "venues")
+      return Response.json(
+        await db.venue.findMany({
+          where: orgs ? { organizationId: { in: orgs } } : {},
+          include: {
+            areas: {
+              include: {
+                slots: {
+                  where: { startsAt: { gt: new Date() } },
+                  include: { booking: true },
+                  orderBy: { startsAt: "asc" },
+                  take: 100,
+                },
+              },
+            },
+          },
+        }),
+      );
+    if (view === "payments") {
+      const scope = q.get("scope");
+      const range = readRange(q);
+      const ids =
+        scope === "owner" || scope === "admin" ? await ownerScope(user) : null;
+      if (scope === "admin") await admin(user);
+      return Response.json(
+        await db.payment.findMany({
+          where: {
+            ...(range
+              ? {
+                  OR: [
+                    { capturedAt: range },
+                    { refunds: { some: { completedAt: range } } },
+                  ],
+                }
+              : {}),
+            AND: [
+              {
+                order: {
+                  participation: {
+                    match: {
+                      slot: {
+                        area: {
+                          ...(q.get("sport") ? { sport: q.get("sport")! } : {}),
+                          ...(q.get("venue")
+                            ? { venueId: q.get("venue")! }
+                            : {}),
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+            order: {
+              participation: ids
+                ? {
+                    match: {
+                      slot: {
+                        area: { venue: { organizationId: { in: ids } } },
+                      },
+                    },
+                  }
+                : scope === "admin" || scope === "owner"
+                  ? {}
+                  : { userId: user.id },
+            },
+          },
+          include: {
+            refunds: true,
+            transfer: true,
+            order: {
+              select: {
+                participation: {
+                  select: { match: { select: { title: true, id: true } } },
+                },
+              },
+            },
+          },
+          orderBy: { capturedAt: "desc" },
+          take: 100,
+        }),
+      );
+    }
+    const category = q.get("date"),
+      basis = q.get("basis");
+    const sport =
+        q.get("sport") ||
+        (basis === "demand" || basis === "sports" ? category : null),
+      locality = q.get("locality"),
+      day = category;
+    const range = readRange(q);
+    const slot: Prisma.SlotWhereInput = {
+      ...(view === "discover" ? { startsAt: { gt: new Date() } } : {}),
+      ...(day && /^\d{4}-\d{2}-\d{2}$/.test(day)
+        ? {
+            startsAt: {
+              gte: new Date(day + "T00:00:00+05:30"),
+              lt: new Date(+new Date(day + "T00:00:00+05:30") + 86400000),
+            },
+          }
+        : {}),
+      area: {
+        ...(sport ? { sport } : {}),
+        venue: {
+          ...(orgs ? { organizationId: { in: orgs } } : {}),
+          ...(q.get("venue") ? { id: q.get("venue")! } : {}),
+          ...(locality
+            ? { locality: { contains: locality, mode: "insensitive" } }
+            : {}),
+          ...(view === "discover"
+            ? {
+                approved: true,
+                published: true,
+                organization: { status: "APPROVED" },
+              }
+            : {}),
+        },
+      },
+    };
+    if (range) slot.startsAt = range;
+    if (basis === "bookings") delete slot.startsAt;
+    const where: Prisma.MatchWhereInput = {
+      slot,
+      ...(basis === "bookings" && range
+        ? { AND: [{ OR: [{ createdAt: range }, { confirmedAt: range }] }] }
+        : {}),
+      ...(basis === "attendance" && category ? { title: category } : {}),
+      ...(["demand", "venues", "utilization"].includes(basis || "")
+        ? { status: { in: ["CONFIRMED", "COMPLETED"] } }
+        : {}),
+      ...(basis === "venues" && category
+        ? {
+            slot: {
+              ...slot,
+              area: {
+                ...(slot.area as Prisma.PlayingAreaWhereInput),
+                venue: {
+                  ...(orgs ? { organizationId: { in: orgs } } : {}),
+                  name: category,
+                },
+              },
+            },
+          }
+        : {}),
+      ...(view === "discover"
+        ? {
+            visibility: "PUBLIC",
+            status: { in: ["REQUESTED", "RECRUITING", "CONFIRMED"] },
+          }
+        : isOwner
+          ? {}
+          : {
+              OR: [
+                { captainId: user.id },
+                { participations: { some: { userId: user.id } } },
+              ],
+            }),
+    };
+    const matches = await db.match.findMany({
+      where,
+      include: {
+        slot: { include: { area: { include: { venue: true } } } },
+        _count: { select: { participations: { where: { status: "PAID" } } } },
+      },
+      orderBy: { slot: { startsAt: "asc" } },
+      take: 100,
+    });
+    const slots =
+      view === "discover"
+        ? await db.slot.findMany({
+            where: {
+              ...slot,
+              blocked: false,
+              booking: null,
+              startsAt: { gt: new Date(Date.now() + 3600000) },
+              ...(range
+                ? { startsAt: { ...range, gt: new Date(Date.now() + 3600000) } }
+                : {}),
+            },
+            include: { area: { include: { venue: true } } },
+            orderBy: { startsAt: "asc" },
+            take: 100,
+          })
+        : [];
+    return Response.json({
+      matches: matches
+        .filter((m) => {
+          if (basis !== "utilization" || !category) return true;
+          const d = new Date(+m.slot.startsAt + 19800000);
+          return (
+            ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getUTCDay()] +
+              " " +
+              String(d.getUTCHours()).padStart(2, "0") +
+              ":00" ===
+            category
+          );
+        })
+        .map((m) => ({ ...m, invitationHash: undefined })),
+      slots,
+    });
+  } catch (e) {
+    return Response.json(
+      {
+        error:
+          e instanceof AppError ? e.message : "Records could not be loaded.",
+      },
+      { status: e instanceof AppError ? e.status : 500 },
+    );
+  }
+}
+
+function readRange(q: URLSearchParams) {
+  try {
+    return reportRange(q);
+  } catch (error) {
+    throw new AppError(
+      400,
+      error instanceof Error ? error.message : "Invalid date range.",
+    );
+  }
+}

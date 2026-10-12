@@ -1,0 +1,299 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+model User {
+  id String @id
+  name String
+  email String @unique
+  emailVerified Boolean @default(false)
+  image String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  twoFactorEnabled Boolean @default(false)
+  role String @default("PLAYER")
+  suspended Boolean @default(false)
+  locality String @default("")
+  sports String[] @default([])
+  sessions Session[]
+  accounts Account[]
+  twoFactors TwoFactor[]
+  memberships Membership[]
+  matches Match[]
+  participations Participation[]
+  notifications Notification[]
+  claims RewardClaim[]
+}
+model Session {
+  id String @id
+  expiresAt DateTime
+  token String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([userId])
+}
+model Account {
+  id String @id
+  accountId String
+  providerId String
+  userId String
+  accessToken String?
+  refreshToken String?
+  idToken String?
+  accessTokenExpiresAt DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope String?
+  password String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([userId])
+}
+model Verification {
+  id String @id
+  identifier String
+  value String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([identifier])
+}
+model TwoFactor {
+  id String @id
+  verified Boolean @default(true)
+  failedVerificationCount Int @default(0)
+  lockedUntil DateTime?
+  secret String
+  backupCodes String
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([userId])
+}
+model Organization {
+  id String @id @default(cuid())
+  name String
+  status String @default("PENDING")
+  linkedAccountId String?
+  createdAt DateTime @default(now())
+  memberships Membership[]
+  venues Venue[]
+}
+model Membership {
+  id String @id @default(cuid())
+  userId String
+  organizationId String
+  role String @default("OWNER")
+  user User @relation(fields:[userId],references:[id])
+  organization Organization @relation(fields:[organizationId],references:[id])
+  @@unique([userId,organizationId])
+}
+model Venue {
+  id String @id @default(cuid())
+  organizationId String
+  name String
+  locality String
+  address String
+  approved Boolean @default(false)
+  published Boolean @default(false)
+  organization Organization @relation(fields:[organizationId],references:[id])
+  areas PlayingArea[]
+  @@index([organizationId])
+}
+model PlayingArea {
+  id String @id @default(cuid())
+  venueId String
+  name String
+  sport String
+  venue Venue @relation(fields:[venueId],references:[id])
+  slots Slot[]
+  @@unique([venueId,name])
+}
+model Slot {
+  id String @id @default(cuid())
+  areaId String
+  startsAt DateTime
+  endsAt DateTime
+  pricePaise Int
+  blocked Boolean @default(false)
+  area PlayingArea @relation(fields:[areaId],references:[id])
+  matches Match[]
+  booking Booking?
+  @@unique([areaId,startsAt])
+  @@index([startsAt])
+}
+model Match {
+  id String @id @default(cuid())
+  captainId String
+  slotId String
+  title String
+  capacity Int
+  sharePaise Int
+  visibility String @default("PUBLIC")
+  invitationHash String? @unique
+  status String @default("REQUESTED")
+  deadline DateTime?
+  createdAt DateTime @default(now())
+  confirmedAt DateTime?
+  completedAt DateTime?
+  captain User @relation(fields:[captainId],references:[id])
+  slot Slot @relation(fields:[slotId],references:[id])
+  booking Booking?
+  participations Participation[]
+  events StatusEvent[]
+  @@index([status,deadline])
+  @@index([captainId])
+}
+model Booking {
+  id String @id @default(cuid())
+  slotId String @unique
+  matchId String? @unique
+  source String @default("ONLINE")
+  status String @default("HELD")
+  note String?
+  createdAt DateTime @default(now())
+  slot Slot @relation(fields:[slotId],references:[id])
+  match Match? @relation(fields:[matchId],references:[id])
+}
+model Participation {
+  id String @id @default(cuid())
+  matchId String
+  userId String
+  status String @default("CHECKOUT")
+  reservedUntil DateTime?
+  currentOrderId String?
+  replacementFor String? @unique
+  createdAt DateTime @default(now())
+  match Match @relation(fields:[matchId],references:[id])
+  user User @relation(fields:[userId],references:[id])
+  orders PaymentOrder[]
+  attendance Attendance?
+  @@unique([matchId,userId])
+  @@index([status,reservedUntil])
+}
+model PaymentOrder {
+  id String @id @default(cuid())
+  participationId String
+  providerOrderId String? @unique
+  amountPaise Int
+  status String @default("CREATING")
+  createdAt DateTime @default(now())
+  reconciledAt DateTime?
+  participation Participation @relation(fields:[participationId],references:[id])
+  payments Payment[]
+}
+model Payment {
+  id String @id @default(cuid())
+  orderId String
+  providerPaymentId String @unique
+  amountPaise Int
+  feePaise Int @default(0)
+  capturedAt DateTime
+  order PaymentOrder @relation(fields:[orderId],references:[id])
+  refunds Refund[]
+  transfer Transfer?
+}
+model Refund {
+  id String @id @default(cuid())
+  paymentId String @unique
+  providerRefundId String? @unique
+  amountPaise Int
+  status String @default("PENDING")
+  reason String
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+  payment Payment @relation(fields:[paymentId],references:[id])
+}
+model Transfer {
+  id String @id @default(cuid())
+  paymentId String @unique
+  providerTransferId String? @unique
+  amountPaise Int
+  status String @default("PENDING")
+  settledAt DateTime?
+  payment Payment @relation(fields:[paymentId],references:[id])
+}
+model Attendance {
+  id String @id @default(cuid())
+  participationId String @unique
+  status String
+  points Int @default(0)
+  recordedBy String
+  updatedAt DateTime @updatedAt
+  participation Participation @relation(fields:[participationId],references:[id])
+}
+model RewardClaim {
+  id String @id @default(cuid())
+  userId String
+  badge String
+  claimedAt DateTime @default(now())
+  user User @relation(fields:[userId],references:[id])
+  @@unique([userId,badge])
+}
+model PointsEntry {
+  id String @id @default(cuid())
+  participationId String
+  userId String
+  delta Int
+  reason String
+  createdAt DateTime @default(now())
+  @@index([userId,createdAt])
+}
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  title String
+  body String
+  href String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields:[userId],references:[id])
+  @@index([userId,createdAt])
+}
+model StatusEvent {
+  id String @id @default(cuid())
+  matchId String
+  status String
+  at DateTime @default(now())
+  match Match @relation(fields:[matchId],references:[id])
+  @@index([at])
+}
+model AuditLog {
+  id String @id @default(cuid())
+  actorId String
+  action String
+  targetId String
+  details Json
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
+model WebhookEvent {
+  id String @id
+  type String
+  processedAt DateTime @default(now())
+}
+model Job {
+  id String @id @default(cuid())
+  key String @unique
+  kind String
+  payload Json
+  status String @default("READY")
+  runAt DateTime @default(now())
+  lockedAt DateTime?
+  attempts Int @default(0)
+  error String?
+  createdAt DateTime @default(now())
+  @@index([status,runAt])
+}
+model RateLimit {
+  id String @id
+  key String @unique
+  count Int
+  lastRequest BigInt
+}

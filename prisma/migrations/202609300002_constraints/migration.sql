@@ -1,0 +1,10 @@
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+ALTER TABLE "Slot" ADD CONSTRAINT "Slot_no_overlap" EXCLUDE USING gist ("areaId" WITH =, tsrange("startsAt", "endsAt", '[)') WITH &&);
+ALTER TABLE "Slot" ADD CONSTRAINT "Slot_duration_price" CHECK ("endsAt" = "startsAt" + INTERVAL '60 minutes' AND "pricePaise" > 0);
+ALTER TABLE "Match" ADD CONSTRAINT "Match_capacity_share" CHECK (capacity BETWEEN 2 AND 30 AND capacity % 2 = 0 AND "sharePaise" > 0);
+ALTER TABLE "Participation" ADD CONSTRAINT "Participation_status" CHECK (status IN ('CHECKOUT','PAID','WAITING_REPLACEMENT','REFUND_PENDING','WITHDRAWN','CANCELLED','EXPIRED'));
+ALTER TABLE "Attendance" ADD CONSTRAINT "Attendance_points" CHECK ((status='ATTENDED' AND points=100) OR (status='NO_SHOW' AND points=0));
+ALTER TABLE "Payment" ADD CONSTRAINT "Payment_amount" CHECK ("amountPaise">0 AND "feePaise">=0);
+ALTER TABLE "Refund" ADD CONSTRAINT "Refund_amount" CHECK ("amountPaise">0);
+ALTER TABLE "Membership" ADD CONSTRAINT "Membership_role" CHECK (role IN ('OWNER','STAFF'));
+ALTER TABLE "User" ADD CONSTRAINT "User_role" CHECK (role IN ('PLAYER','ADMIN'));
