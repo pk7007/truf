@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "echo No dependencies required",
+  "buildCommand": "node -e \"const fs=require('node:fs');fs.mkdirSync('dist',{recursive:true});for(const file of ['index.html','domain.js','progress.js','progress-ui.js'])fs.copyFileSync(file,'dist/'+file)\"",
+  "outputDirectory": "dist"
+}
