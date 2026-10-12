@@ -61,12 +61,29 @@ function exportChart(chart: ChartData) {
   URL.revokeObjectURL(url);
 }
 function Chart({ data }: { data: ChartData }) {
+  const currency = data.id === "cash";
+  const formatValue = (value: unknown) =>
+    currency
+      ? new Intl.NumberFormat("en-IN", {
+          style: "currency",
+          currency: "INR",
+          maximumFractionDigits: 0,
+        }).format(Number(value))
+      : new Intl.NumberFormat("en-IN").format(Number(value));
+  const formatDate = (value: string) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(value)
+      ? new Date(value + "T00:00:00+05:30").toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          timeZone: "Asia/Kolkata",
+        })
+      : value;
   return (
-    <article className="card">
+    <article className="card report-chart">
       <div className="row between">
         <h2>{data.title}</h2>
         <button onClick={() => exportChart(data)} disabled={!data.rows.length}>
-          CSV ↓
+          Export CSV
         </button>
       </div>
       <p className="muted">
@@ -114,10 +131,15 @@ function Chart({ data }: { data: ChartData }) {
         <div style={{ height: 280 }}>
           <ResponsiveContainer width="100%" height="100%">
             {data.kind === "line" ? (
-              <LineChart data={data.rows}>
+              <LineChart
+                data={data.rows}
+                margin={{ top: 12, right: 12, left: 12, bottom: 8 }}
+              >
                 <CartesianGrid stroke="#343c50" strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
+                  tickFormatter={formatDate}
+                  minTickGap={24}
                   tick={{ fontSize: 11, fill: "#acb6c8" }}
                 />
                 <YAxis
@@ -125,6 +147,8 @@ function Chart({ data }: { data: ChartData }) {
                   tick={{ fill: "#acb6c8" }}
                 />
                 <Tooltip
+                  formatter={(value) => formatValue(value)}
+                  labelFormatter={(label) => formatDate(String(label))}
                   contentStyle={{
                     background: "#171c27",
                     borderColor: "#424c61",
@@ -137,14 +161,17 @@ function Chart({ data }: { data: ChartData }) {
                     type="monotone"
                     dataKey={s}
                     stroke={colors[i % colors.length]}
-                    dot={false}
-                    strokeWidth={2}
+                    dot={data.rows.length <= 7 ? { r: 3 } : false}
+                    strokeWidth={3}
                   />
                 ))}
               </LineChart>
             ) : (
               <BarChart
                 data={data.rows}
+                margin={{ top: 12, right: 16, left: 12, bottom: 8 }}
+                maxBarSize={36}
+                barGap={4}
                 layout={data.kind === "horizontal" ? "vertical" : "horizontal"}
               >
                 <CartesianGrid stroke="#343c50" strokeDasharray="3 3" />
@@ -162,6 +189,8 @@ function Chart({ data }: { data: ChartData }) {
                   tick={{ fontSize: 11, fill: "#acb6c8" }}
                 />
                 <Tooltip
+                  formatter={(value) => formatValue(value)}
+                  labelFormatter={(label) => formatDate(String(label))}
                   contentStyle={{
                     background: "#171c27",
                     borderColor: "#424c61",
@@ -215,7 +244,7 @@ function Chart({ data }: { data: ChartData }) {
                     </a>
                   </th>
                   {data.series.map((s) => (
-                    <td key={s}>{r[s]}</td>
+                    <td key={s}>{currency ? formatValue(r[s]) : r[s]}</td>
                   ))}
                 </tr>
               ))}
@@ -457,8 +486,10 @@ export function Reports({ view }: { view: "player" | "owner" | "admin" }) {
                 {new Date(data.generatedAt).toLocaleString("en-IN", {
                   timeZone: "Asia/Kolkata",
                 })}{" "}
-                IST. Collections are not profit. Platform commission: zero
-                during pilot.
+                IST.{" "}
+                {view === "player"
+                  ? "Progress is based on recorded attendance. Points have no cash value."
+                  : "Collections are not profit. Platform commission is zero during the pilot; settlements are reported separately."}
               </small>
             </p>
           </>

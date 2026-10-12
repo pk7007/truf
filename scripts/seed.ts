@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { hashPassword } from "better-auth/crypto";
 import { db } from "../src/server/db";
+import { seedDemoWeek } from "./demo-week";
 async function main() {
   if (
     process.env.NODE_ENV === "production" ||
@@ -182,6 +183,7 @@ async function main() {
       update: {},
     });
   }
+  await seedDemoWeek();
   console.log(
     "Local development fixtures ready. Accounts: player@truf.local, owner@truf.local, other@truf.local, admin@truf.local. Password: SEED_PASSWORD in ignored .env. Admin must enroll MFA.",
   );

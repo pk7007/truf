@@ -392,22 +392,46 @@ export async function analytics(user: User, params: URLSearchParams) {
           "stacked",
           "Completed game date; unmarked is unknown",
           ["Attended", "NoShow", "Unmarked"],
-          scheduled
-            .filter((m) => m.status === "COMPLETED")
-            .map((m) => ({
-              date: m.title,
-              Attended: m.participations.filter(
-                (p) =>
-                  p.status === "PAID" && p.attendance?.status === "ATTENDED",
-              ).length,
-              NoShow: m.participations.filter(
-                (p) =>
-                  p.status === "PAID" && p.attendance?.status === "NO_SHOW",
-              ).length,
-              Unmarked: m.participations.filter(
-                (p) => p.status === "PAID" && !p.attendance,
-              ).length,
-            })),
+          Object.values(
+            scheduled
+              .filter((m) => m.status === "COMPLETED")
+              .map((m) => ({
+                date: istDay(m.slot.startsAt),
+                Attended: m.participations.filter(
+                  (p) =>
+                    p.status === "PAID" && p.attendance?.status === "ATTENDED",
+                ).length,
+                NoShow: m.participations.filter(
+                  (p) =>
+                    p.status === "PAID" && p.attendance?.status === "NO_SHOW",
+                ).length,
+                Unmarked: m.participations.filter(
+                  (p) => p.status === "PAID" && !p.attendance,
+                ).length,
+              }))
+              .reduce<
+                Record<
+                  string,
+                  {
+                    date: string;
+                    Attended: number;
+                    NoShow: number;
+                    Unmarked: number;
+                  }
+                >
+              >((days, row) => {
+                const day = (days[row.date] ??= {
+                  date: row.date,
+                  Attended: 0,
+                  NoShow: 0,
+                  Unmarked: 0,
+                });
+                day.Attended += row.Attended;
+                day.NoShow += row.NoShow;
+                day.Unmarked += row.Unmarked;
+                return days;
+              }, {}),
+          ).sort((a, b) => a.date.localeCompare(b.date)),
         ),
       );
     }

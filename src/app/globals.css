@@ -729,3 +729,16 @@ li {
     transition: none !important;
   }
 }
+
+/* Reporting presentation: restrained hierarchy and readable financial data. */
+.demo-notice { display:flex; flex-wrap:wrap; gap:.5rem 1rem; padding:1rem 1.2rem; margin:0 0 1.5rem; border:1px solid #544879; border-radius:12px; background:#221d32; color:#d8ccef; font-size:.85rem; }
+.demo-notice span { color:#bcb6cd; }
+.report-chart { border-top:2px solid #685793; overflow:hidden; }
+.report-chart h2 { font-size:1.05rem; letter-spacing:-.025em; }
+.report-chart > .muted { min-height:2.5em; max-width:65ch; }
+.report-chart details { margin-top:1.25rem; padding-top:1rem; border-top:1px solid #303749; }
+.report-chart summary { color:#bcb0e7; font-size:.85rem; cursor:pointer; }
+.report-chart .recharts-legend-wrapper { font-size:12px; padding-top:8px; }
+.report-chart .recharts-tooltip-wrapper { font-size:13px; }
+.report-chart table td { font-variant-numeric:tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .recharts-layer { transition:none !important; } }

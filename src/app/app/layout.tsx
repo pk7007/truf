@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { currentUser } from "@/server/access";
 import { db } from "@/server/db";
 import { SignOut } from "@/components/account";
+import { localMode } from "@/server/local-mode";
 export default async function Layout({
   children,
 }: {
@@ -39,6 +40,15 @@ export default async function Layout({
             <SignOut />
           </div>
         </header>
+        {localMode() && (
+          <div className="demo-notice" role="note">
+            <strong>Sales demonstration</strong>
+            <span>
+              Fictional sample activity · No real collections or customer
+              traction. Use the date filters to explore the latest week.
+            </span>
+          </div>
+        )}
         {children}
       </main>
     </div>
