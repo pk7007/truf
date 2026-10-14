@@ -2,6 +2,8 @@
 
 Status (14 October 2026): the full Next.js landing page is verified at https://truf-red.vercel.app. A successful page load does not mean account services, payments or the worker are configured. The separate truf-preview project is the old static prototype.
 
+The production release `353a3ae` successfully applied all five migrations to managed PostgreSQL. Its live health request returned 500: startup validation requires the missing BETTER_AUTH_SECRET. The environment settings currently contain database integration variables and BETTER_AUTH_URL only. Configure the secret, email service and worker before claiming the application is usable. Never disable startup validation or email verification to make a deployment appear ready.
+
 ## Services
 
 - Vercel: Next.js web application and server routes, Node.js 24.x.
