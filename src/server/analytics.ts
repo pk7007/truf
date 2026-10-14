@@ -2,6 +2,7 @@ import { Prisma, User } from "@prisma/client";
 import { db } from "./db";
 import { ownerScope, AppError } from "./access";
 import { istDay, streak, weekStart } from "@/lib/rules";
+import { localMode } from "./local-mode";
 export type ChartData = {
   id: string;
   title: string;
@@ -461,6 +462,7 @@ export async function analytics(user: User, params: URLSearchParams) {
     generatedAt: new Date().toISOString(),
     venues,
     charts,
+    demo: localMode(),
     summary: {
       bookings: scheduled.length,
       capturedPaise: captured,

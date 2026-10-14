@@ -14,7 +14,9 @@ import {
 } from "recharts";
 import type { ChartData } from "@/server/analytics";
 import { csv, money } from "@/lib/rules";
+import type { ExportContext } from "@/lib/excel-export";
 type Report = {
+  demo: boolean;
   from: string;
   to: string;
   generatedAt: string;
@@ -60,7 +62,47 @@ function exportChart(chart: ChartData) {
   a.click();
   URL.revokeObjectURL(url);
 }
-function Chart({ data }: { data: ChartData }) {
+function ExcelButton({
+  charts,
+  context,
+}: {
+  charts: ChartData[];
+  context: ExportContext;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  return (
+    <div>
+      <button
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError("");
+          try {
+            const { downloadExcel } = await import("@/lib/excel-export");
+            await downloadExcel(charts, context);
+          } catch {
+            setError("Excel export failed. Please try again.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy
+          ? "Preparing Excel…"
+          : charts.length > 1
+            ? "Export full report (.xlsx)"
+            : "Export Excel"}
+      </button>
+      {error && (
+        <p role="alert" className="error">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+function Chart({ data, context }: { data: ChartData; context: ExportContext }) {
   const currency = data.id === "cash";
   const formatValue = (value: unknown) =>
     currency
@@ -82,6 +124,7 @@ function Chart({ data }: { data: ChartData }) {
     <article className="card report-chart">
       <div className="row between">
         <h2>{data.title}</h2>
+        <ExcelButton charts={[data]} context={context} />
         <button onClick={() => exportChart(data)} disabled={!data.rows.length}>
           Export CSV
         </button>
@@ -413,6 +456,22 @@ export function Reports({ view }: { view: "player" | "owner" | "admin" }) {
       ) : (
         data && (
           <>
+            <div className="row between">
+              <p className="muted">
+                Download the displayed report as an Excel workbook.
+              </p>
+              <ExcelButton
+                charts={data.charts}
+                context={{
+                  from: data.from,
+                  to: data.to,
+                  generatedAt: data.generatedAt,
+                  view,
+                  filters: query,
+                  demo: data.demo,
+                }}
+              />
+            </div>
             {view === "player" && data.progress ? (
               <>
                 <div className="stats">
@@ -477,7 +536,18 @@ export function Reports({ view }: { view: "player" | "owner" | "admin" }) {
             )}
             <div className="charts">
               {data.charts.map((c) => (
-                <Chart key={c.id} data={c} />
+                <Chart
+                  key={c.id}
+                  data={c}
+                  context={{
+                    from: data.from,
+                    to: data.to,
+                    generatedAt: data.generatedAt,
+                    view,
+                    filters: query,
+                    demo: data.demo,
+                  }}
+                />
               ))}
             </div>
             <p className="muted">
