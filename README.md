@@ -40,7 +40,7 @@ Development accounts: player@truf.local, owner@truf.local, other@truf.local and 
 - Test Razorpay order/checkout/verification/webhook integration. Serializable booking transitions, unique roster identities and PostgreSQL overlap constraints.
 - Durable expiry, completion, reminder and refund jobs; retries, stale lease recovery and delayed-payment reconciliation.
 - Attendance corrections with points ledger, non-cash badges and IST weekly streaks.
-- Player, owner and admin charts with filters, accessible tables and CSV exports. Reports query PostgreSQL rather than localStorage.
+- Player, owner and admin charts with filters, accessible tables, CSV and Excel exports. Reports query PostgreSQL rather than localStorage.
 - Optional AI filter adapter with explicit demo fallback; it cannot book, approve, join or move funds.
 - CI configuration, Render web/database/worker blueprint, health endpoints and operational documentation.
 

@@ -7,9 +7,11 @@ import { QRCodeSVG } from "qrcode.react";
 export function Account({
   mode,
   localMail = false,
+  unavailable,
 }: {
   mode: string;
   localMail?: boolean;
+  unavailable?: string;
 }) {
   const router = useRouter();
   const [error, setError] = useState(""),
@@ -32,6 +34,11 @@ export function Account({
       </Link>
       <p className="tag">Your next game starts here</p>
       <h1>{title}</h1>
+      {unavailable && (
+        <p role="status" className="muted">
+          {unavailable}
+        </p>
+      )}
       {localMail && (
         <p className="muted">
           Local development: verification and recovery emails are saved as files
@@ -42,6 +49,7 @@ export function Account({
       <form
         onSubmit={async (e) => {
           e.preventDefault();
+          if (unavailable) return;
           setBusy(true);
           setError("");
           const f = new FormData(e.currentTarget);
@@ -141,7 +149,7 @@ export function Account({
             />
           </label>
         )}
-        <button className="primary" disabled={busy}>
+        <button className="primary" disabled={busy || !!unavailable}>
           {busy
             ? "Please wait…"
             : mode === "register"

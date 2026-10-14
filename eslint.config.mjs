@@ -7,6 +7,10 @@ export default defineConfig([
   globalIgnores([
     "prototype/**",
     ".next/**",
+    ".data/**",
+    ".vercel/**",
+    "coverage/**",
+    "dist/**",
     "node_modules/**",
     "next-env.d.ts",
   ]),
