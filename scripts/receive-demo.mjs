@@ -1,0 +1,13 @@
+import { readFile, writeFile } from "node:fs/promises";
+import { createDecipheriv, privateDecrypt } from "node:crypto";
+const response = await fetch("https://truf-red.vercel.app/truf-demo-delivery.json", { signal: AbortSignal.timeout(20000) });
+if (!response.ok) throw Error("Encrypted demo delivery is not available yet.");
+const envelope = await response.json();
+const privateKey = await readFile(".data/hosted-demo-private.pem", "utf8");
+const key = privateDecrypt({ key: privateKey, oaepHash: "sha256" }, Buffer.from(envelope.key, "base64"));
+const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(envelope.iv, "base64"));
+decipher.setAuthTag(Buffer.from(envelope.tag, "base64"));
+const payload = JSON.parse(Buffer.concat([decipher.update(Buffer.from(envelope.data, "base64")), decipher.final()]).toString());
+await writeFile(".data/HOSTED-DEMO-ACCESS.json", JSON.stringify(payload, null, 2), { mode: 0o600 });
+await writeFile(".data/HOSTED-DEMO-ACCESS.txt", "TRUF hosted demo access — keep private\n\n" + payload.credentials.map((x) => `${x.role.toUpperCase()}\nLogin: ${x.login}\nEmail: ${x.email}\nPassword: ${x.password}\n`).join("\n") + "\nAdmin: enroll an authenticator under Account & security before using administration.\nPayments are not configured; no real charges are enabled.\n", { mode: 0o600 });
+console.log("Hosted demo credentials decrypted into ignored .data/HOSTED-DEMO-ACCESS.txt. No passwords logged.");
