@@ -4,14 +4,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { QRCodeSVG } from "qrcode.react";
+import { portals, type Portal } from "@/lib/login-portals";
 export function Account({
   mode,
   localMail = false,
   unavailable,
+  portal,
 }: {
   mode: string;
   localMail?: boolean;
   unavailable?: string;
+  portal?: Portal;
 }) {
   const router = useRouter();
   const [error, setError] = useState(""),
@@ -26,14 +29,33 @@ export function Account({
           ? "Choose a new password"
           : mode === "two-factor"
             ? "Verify your sign-in"
-            : "Welcome back";
+            : portal
+              ? portals[portal].title
+              : "Welcome back";
+  const destination = "/auth/continue" + (portal ? `?portal=${portal}` : "");
   return (
-    <main className="auth">
+    <main className={`auth ${portal ? `portal-${portal}` : ""}`}>
       <Link className="brand" href="/">
         TRUF
       </Link>
-      <p className="tag">Your next game starts here</p>
+      <p className="tag">
+        {portal
+          ? `${portals[portal].label} portal`
+          : "Your next game starts here"}
+      </p>
       <h1>{title}</h1>
+      {portal && <p className="muted">{portals[portal].description}</p>}
+      {portal === "admin" && (
+        <p className="portal-note">
+          Administrator access is invitation-only. Authenticator verification is
+          required for admin operations.
+        </p>
+      )}
+      {portal === "owner" && (
+        <p className="portal-note">
+          Use the email linked to your approved owner or staff account.
+        </p>
+      )}
       {unavailable && (
         <p role="status" className="muted">
           {unavailable}
@@ -83,7 +105,7 @@ export function Account({
                       : await authClient.signIn.email({
                           email,
                           password,
-                          callbackURL: "/app/discover",
+                          callbackURL: destination,
                         });
             if (result.error) throw Error(result.error.message);
             if (mode === "register")
@@ -97,10 +119,10 @@ export function Account({
             else if (mode === "reset-password")
               setNotice("Password updated. You can now sign in.");
             else if (mode === "two-factor") {
-              router.replace("/app/discover");
+              router.replace(destination);
               router.refresh();
             } else if (!("twoFactorRedirect" in (result.data || {}))) {
-              router.replace("/app/discover");
+              router.replace(destination);
               router.refresh();
             }
           } catch (e) {
@@ -170,9 +192,17 @@ export function Account({
         </p>
       )}
       <div className="row" style={{ marginTop: 24 }}>
-        <Link href="/login">Sign in</Link>
-        <Link href="/register">Register</Link>
-        <Link href="/forgot-password">Forgot password?</Link>
+        <Link href="/login">Choose another portal</Link>
+        {(!portal || portal === "player") && (
+          <Link href="/register">Create an account</Link>
+        )}
+        <Link
+          href={
+            portal ? `/forgot-password?portal=${portal}` : "/forgot-password"
+          }
+        >
+          Forgot password?
+        </Link>
       </div>
     </main>
   );

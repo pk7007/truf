@@ -34,7 +34,7 @@ export default function Home() {
                 style={{ display: "inline", verticalAlign: "middle" }}
               />
             </Link>
-            <Link className="button" href="/login">
+            <Link className="button" href="/login/owner">
               Manage a venue
             </Link>
           </div>

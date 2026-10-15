@@ -2,7 +2,9 @@
 
 Status (14 October 2026): the full Next.js landing page is verified at https://truf-red.vercel.app. A successful page load does not mean account services, payments or the worker are configured. The separate truf-preview project is the old static prototype.
 
-The production release `353a3ae` successfully applied all five migrations to managed PostgreSQL. Its live health request returned 500: startup validation requires the missing BETTER_AUTH_SECRET. The environment settings currently contain database integration variables and BETTER_AUTH_URL only. Configure the secret, email service and worker before claiming the application is usable. Never disable startup validation or email verification to make a deployment appear ready.
+The production release `353a3ae` successfully applied all five migrations to managed PostgreSQL. After the account owner saved BETTER_AUTH_SECRET, revision `5ad7a78` was redeployed and `/api/health` returned HTTP 200 with `status: ok`. Email delivery, payment credentials and the hosted worker remain release dependencies. Never disable startup validation or email verification to make a deployment appear ready.
+
+Sign-in entry points: `/login` selects a portal; `/login/player`, `/login/owner`, and `/login/admin` provide dedicated forms. Portal choice never changes account permissions. Approved organization membership is required for the owner destination; administrators without MFA are directed to security setup. Authenticator verification retains the selected portal.
 
 ## Services
 

@@ -2,12 +2,16 @@ import { notFound } from "next/navigation";
 import { Account } from "@/components/account";
 import { localMode } from "@/server/local-mode";
 import { accountReadiness } from "@/server/readiness";
+import { isPortal } from "@/lib/login-portals";
 export default async function Page({
   params,
+  searchParams,
 }: {
   params: Promise<{ authPage: string }>;
+  searchParams: Promise<{ portal?: string }>;
 }) {
   const { authPage } = await params;
+  const query = await searchParams;
   if (
     ![
       "login",
@@ -28,6 +32,7 @@ export default async function Page({
   return (
     <Account
       mode={authPage}
+      portal={isPortal(query.portal) ? query.portal : undefined}
       localMail={localMode() && !process.env.RESEND_API_KEY}
       unavailable={unavailable}
     />
