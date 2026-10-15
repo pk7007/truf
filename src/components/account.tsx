@@ -74,6 +74,7 @@ export function Account({
           if (unavailable) return;
           setBusy(true);
           setError("");
+          setNotice("");
           const f = new FormData(e.currentTarget);
           try {
             const email = String(f.get("email") || ""),
@@ -89,7 +90,8 @@ export function Account({
                 : mode === "forgot-password"
                   ? await authClient.requestPasswordReset({
                       email,
-                      redirectTo: "/reset-password",
+                      redirectTo:
+                        "/reset-password" + (portal ? `?portal=${portal}` : ""),
                     })
                   : mode === "reset-password"
                     ? await authClient.resetPassword({

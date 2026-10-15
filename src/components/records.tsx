@@ -111,6 +111,7 @@ export function ActionForm({
           const form = e.currentTarget;
           setBusy(true);
           setError("");
+          setNotice("");
           const values = Object.fromEntries(new FormData(form));
           try {
             for (const field of fields)

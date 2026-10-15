@@ -15,6 +15,8 @@ export function SmartSearch({ apply }: { apply: (query: string) => void }) {
         onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
+          setFilters(null);
+          setMessage("");
           try {
             const r = await fetch("/api/search", {
               method: "POST",
@@ -43,6 +45,7 @@ export function SmartSearch({ apply }: { apply: (query: string) => void }) {
             name="query"
             placeholder="Football in Velachery"
             maxLength={500}
+            minLength={2}
             required
           />
         </label>

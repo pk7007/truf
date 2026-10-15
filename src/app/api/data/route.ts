@@ -217,12 +217,18 @@ export async function GET(request: Request) {
     };
     if (range) slot.startsAt = range;
     if (basis === "bookings") delete slot.startsAt;
+    // Date/chart filters must never remove discovery's future-only boundary.
+    if (view === "discover")
+      slot.startsAt = {
+        ...(typeof slot.startsAt === "object" ? slot.startsAt : {}),
+        gt: new Date(),
+      };
     const where: Prisma.MatchWhereInput = {
       slot,
       ...(basis === "bookings" && range
         ? { AND: [{ OR: [{ createdAt: range }, { confirmedAt: range }] }] }
         : {}),
-      ...(basis === "attendance" && category ? { title: category } : {}),
+      ...(basis === "attendance" ? { status: "COMPLETED" } : {}),
       ...(["demand", "venues", "utilization"].includes(basis || "")
         ? { status: { in: ["CONFIRMED", "COMPLETED"] } }
         : {}),
