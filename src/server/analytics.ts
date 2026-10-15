@@ -1,8 +1,9 @@
 import { Prisma, User } from "@prisma/client";
 import { db } from "./db";
-import { ownerScope, AppError } from "./access";
+import { reportScope, AppError } from "./access";
 import { istDay, streak, weekStart } from "@/lib/rules";
 import { localMode } from "./local-mode";
+import { isDemoAdministrator } from "@/lib/demo-access";
 export type ChartData = {
   id: string;
   title: string;
@@ -17,7 +18,7 @@ export async function analytics(user: User, params: URLSearchParams) {
     isPlayer = view === "player";
   if (!["player", "owner", "admin"].includes(view))
     throw new AppError(400, "Invalid report view.");
-  const orgs = isPlayer ? [] : await ownerScope(user);
+  const orgs = isPlayer ? [] : await reportScope(user);
   const interval = params.get("interval") || "day";
   if (!["day", "week", "month"].includes(interval))
     throw new AppError(400, "Invalid reporting interval.");
@@ -295,7 +296,12 @@ export async function analytics(user: User, params: URLSearchParams) {
         ),
       );
       const users = await db.user.findMany({
-        where: { createdAt: { gte: start, lt: end } },
+        where: {
+          createdAt: { gte: start, lt: end },
+          ...(isDemoAdministrator(user)
+            ? { id: { startsWith: "hosted-demo-20261015-" } }
+            : {}),
+        },
         select: { createdAt: true },
       });
       for (const u of users)

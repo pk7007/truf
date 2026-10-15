@@ -1,6 +1,7 @@
 import { reportRange } from "@/lib/report-range";
 import { Prisma } from "@prisma/client";
-import { currentUser, ownerScope, admin, AppError } from "@/server/access";
+import { currentUser, reportScope, admin, AppError } from "@/server/access";
+import { DEMO_ORGANIZATION, isDemoAdministrator } from "@/lib/demo-access";
 import { canReadMatch } from "@/server/booking";
 import { db } from "@/server/db";
 export async function GET(request: Request) {
@@ -63,6 +64,21 @@ export async function GET(request: Request) {
         }),
       });
     if (view === "admin") {
+      if (isDemoAdministrator(user))
+        return Response.json({
+          organizations: await db.organization.findMany({
+            where: { id: DEMO_ORGANIZATION },
+            include: {
+              venues: true,
+              memberships: {
+                include: { user: { select: { name: true, email: true } } },
+              },
+            },
+          }),
+          jobs: [],
+          audit: [],
+          users: [],
+        });
       await admin(user);
       return Response.json({
         organizations: await db.organization.findMany({
@@ -95,7 +111,7 @@ export async function GET(request: Request) {
       });
     }
     const isOwner = view === "venues" || view === "owner-bookings",
-      orgs = isOwner ? await ownerScope(user) : null;
+      orgs = isOwner ? await reportScope(user) : null;
     if (view === "venues")
       return Response.json(
         await db.venue.findMany({
@@ -118,8 +134,8 @@ export async function GET(request: Request) {
       const scope = q.get("scope");
       const range = readRange(q);
       const ids =
-        scope === "owner" || scope === "admin" ? await ownerScope(user) : null;
-      if (scope === "admin") await admin(user);
+        scope === "owner" || scope === "admin" ? await reportScope(user) : null;
+      if (scope === "admin" && !isDemoAdministrator(user)) await admin(user);
       return Response.json(
         await db.payment.findMany({
           where: {

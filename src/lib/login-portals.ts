@@ -1,3 +1,4 @@
+import { isDemoAdministrator } from "./demo-access";
 export const portals = {
   player: {
     title: "Player sign in",
@@ -24,7 +25,7 @@ export function isPortal(value: unknown): value is Portal {
 }
 export function portalDestination(
   portal: Portal | undefined,
-  user: { role: string; twoFactorEnabled: boolean },
+  user: { id?: string; role: string; twoFactorEnabled: boolean },
   approvedOwner: boolean,
 ) {
   const selected =
@@ -33,7 +34,7 @@ export function portalDestination(
   if (selected === "admin")
     return user.role !== "ADMIN"
       ? null
-      : user.twoFactorEnabled
+      : user.twoFactorEnabled || isDemoAdministrator(user)
         ? "/app/admin"
         : "/app/settings";
   if (selected === "owner") return approvedOwner ? "/app/owner" : null;

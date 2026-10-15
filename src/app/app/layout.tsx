@@ -5,6 +5,7 @@ import { currentUser } from "@/server/access";
 import { db } from "@/server/db";
 import { SignOut } from "@/components/account";
 import { localMode } from "@/server/local-mode";
+import { isDemoAdministrator } from "@/lib/demo-access";
 export default async function Layout({
   children,
 }: {
@@ -40,6 +41,12 @@ export default async function Layout({
             <SignOut />
           </div>
         </header>
+        {isDemoAdministrator(user) && (
+          <div className="demo-notice" role="note">
+            Demo administrator · Read-only access to fictional demo records. No
+            authenticator required for viewing.
+          </div>
+        )}
         {localMode() && (
           <div className="demo-notice" role="note">
             <strong>Sales demonstration</strong>

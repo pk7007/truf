@@ -5,7 +5,7 @@ vi.mock("../src/server/db", () => ({
 }));
 vi.mock("../src/server/access", () => ({
   currentUser: async () => ({ id: "player", role: "PLAYER" }),
-  ownerScope: async () => ["owner-org"],
+  reportScope: async () => ["owner-org"],
   admin: vi.fn(),
   AppError: class extends Error {
     constructor(

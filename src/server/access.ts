@@ -1,6 +1,15 @@
 import { headers } from "next/headers";
 import { auth } from "./auth";
 import { db } from "./db";
+import { DEMO_ORGANIZATION, isDemoAdministrator } from "@/lib/demo-access";
+// Reporting only: never use this helper to authorize mutations.
+export async function reportScope(user: {
+  id: string;
+  role: string;
+  twoFactorEnabled: boolean;
+}) {
+  return isDemoAdministrator(user) ? [DEMO_ORGANIZATION] : ownerScope(user);
+}
 export class AppError extends Error {
   constructor(
     public status: number,

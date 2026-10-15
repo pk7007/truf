@@ -21,10 +21,13 @@ import {
 import { db } from "@/server/db";
 import { SPORTS } from "@/lib/rules";
 import { limit } from "@/server/rate-limit";
+import { isDemoAdministrator } from "@/lib/demo-access";
 export async function POST(request: Request) {
   try {
     sameOrigin(request);
     const user = await currentUser();
+    if (isDemoAdministrator(user))
+      throw new AppError(403, "The demo administrator is read-only.");
     await limit(user.id, "actions");
     if (Number(request.headers.get("content-length")) > 20000)
       throw new AppError(413, "Request too large.");

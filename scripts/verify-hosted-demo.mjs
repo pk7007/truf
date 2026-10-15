@@ -14,14 +14,25 @@ for (const { role, email, password } of credentials) {
     const headers = { Cookie: cookie, Origin: base };
     const landing = await fetch(`${base}/auth/continue?portal=${role}`, { headers, redirect: "manual" });
     assert.equal(landing.status, 307);
-    const expected = role === "admin" ? "/app/settings" : role === "owner" ? "/app/owner" : "/app/discover";
+    const expected = role === "admin" ? "/app/admin" : role === "owner" ? "/app/owner" : "/app/discover";
     assert.equal(new URL(landing.headers.get("location"), base).pathname, expected);
     const settings = await fetch(base + "/api/data?view=settings", { headers });
     assert.equal(settings.status, 200);
     const forbidden = await fetch(base + "/api/data?view=admin", { headers });
-    assert.equal(forbidden.status, 403, "Administrator MFA/role boundary must remain enforced");
+    assert.equal(forbidden.status, role === "admin" ? 200 : 403);
+    if (role === "admin") {
+      const records = await forbidden.json();
+      assert.ok(records.organizations.every(o => o.id === "hosted-demo-20261015-org"));
+      assert.equal(records.users.length, 0);
+      const readOnly = await fetch(base + "/api/actions", { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ action: "invalid-readonly-probe" }) });
+      assert.equal(readOnly.status, 403);
+      assert.match((await readOnly.json()).error, /read-only/);
+      const dashboard = await fetch(base + "/api/reports?view=admin", { headers });
+      assert.equal(dashboard.status, 200);
+      assert.ok((await dashboard.json()).venues.every(v => v.id.startsWith("hosted-demo-20261015-month-v1")));
+    }
     const report = await fetch(base + "/api/reports?view=owner", { headers });
-    assert.equal(report.status, role === "owner" ? 200 : 403);
+    assert.equal(report.status, role === "player" ? 403 : 200);
     if (process.env.VERIFY_DEMO_MONTH === "1" && role !== "admin") {
       const history = await fetch(`${base}/api/reports?view=${role}&from=2026-09-16&to=2026-10-15`, { headers });
       assert.equal(history.status, 200);
