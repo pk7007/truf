@@ -17,7 +17,5 @@ run("node_modules/prisma/build/index.js", ["generate"]);
 if (process.env.VERCEL_ENV === "production") {
   if (!process.env.DATABASE_URL) throw Error("DATABASE_URL is required");
   run("node_modules/prisma/build/index.js", ["migrate", "deploy"]);
-  // One-time user-authorized demo provisioning; remove after secure delivery.
-  run("node_modules/tsx/dist/cli.mjs", ["scripts/hosted-demo.ts"]);
 }
 run("node_modules/next/dist/bin/next", ["build"]);
