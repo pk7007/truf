@@ -456,6 +456,12 @@ export function Reports({ view }: { view: "player" | "owner" | "admin" }) {
       ) : (
         data && (
           <>
+            {data.demo && (
+              <p className="notice" role="note">
+                Demonstration data · Fictional sporting activity for
+                presentation purposes.
+              </p>
+            )}
             <div className="row between">
               <p className="muted">
                 Download the displayed report as an Excel workbook.

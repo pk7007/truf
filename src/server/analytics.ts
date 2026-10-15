@@ -462,7 +462,7 @@ export async function analytics(user: User, params: URLSearchParams) {
     generatedAt: new Date().toISOString(),
     venues,
     charts,
-    demo: localMode(),
+    demo: localMode() || user.id.startsWith("hosted-demo-20261015-"),
     summary: {
       bookings: scheduled.length,
       capturedPaise: captured,

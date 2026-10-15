@@ -7,6 +7,7 @@ import {
 import { PrismaClient } from "@prisma/client";
 import { verifyPassword } from "better-auth/crypto";
 import { provisionDemo } from "../scripts/provision-demo";
+import { seedDemoMonth } from "../scripts/demo-month";
 const suite = process.env.INTEGRATION_TEST === "1" ? describe : describe.skip;
 suite("authorized hosted demo provisioning", () => {
   const db = new PrismaClient();
@@ -70,5 +71,42 @@ suite("authorized hosted demo provisioning", () => {
         where: { id: { startsWith: "conflicting-demo-" } },
       }),
     ).toBe(0);
+    const date = new Date("2026-10-15T10:00:00Z");
+    const month = await seedDemoMonth(db, "test-hosted-demo", date);
+    expect(month).toMatchObject({
+      completed: 15,
+      upcoming: 3,
+      points: 1500,
+      hours: 15,
+      from: "2026-09-16",
+      to: "2026-10-14",
+    });
+    expect(await seedDemoMonth(db, "test-hosted-demo", date)).toEqual(month);
+    const matches = await db.match.findMany({
+      where: { id: { startsWith: "test-hosted-demo-month-v1" } },
+      include: {
+        participations: { include: { attendance: true, orders: true } },
+        slot: true,
+      },
+    });
+    expect(matches).toHaveLength(18);
+    expect(matches.filter((m) => m.status === "COMPLETED")).toHaveLength(15);
+    expect(
+      matches
+        .flatMap((m) => m.participations)
+        .filter(
+          (p) =>
+            p.userId === "test-hosted-demo-player" &&
+            p.attendance?.points === 100,
+        ),
+    ).toHaveLength(15);
+    expect(
+      matches.flatMap((m) => m.participations).flatMap((p) => p.orders),
+    ).toHaveLength(0);
+    expect(
+      matches
+        .filter((m) => m.status === "REQUESTED")
+        .every((m) => m.slot.startsAt > date && m.participations.length === 0),
+    ).toBe(true);
   });
 });
