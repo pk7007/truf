@@ -22,6 +22,20 @@ for (const { role, email, password } of credentials) {
     assert.equal(forbidden.status, 403, "Administrator MFA/role boundary must remain enforced");
     const report = await fetch(base + "/api/reports?view=owner", { headers });
     assert.equal(report.status, role === "owner" ? 200 : 403);
+    if (process.env.VERIFY_DEMO_MONTH === "1" && role !== "admin") {
+      const history = await fetch(`${base}/api/reports?view=${role}&from=2026-09-16&to=2026-10-15`, { headers });
+      assert.equal(history.status, 200);
+      const data = await history.json();
+      assert.equal(data.demo, true);
+      assert.equal(data.summary.bookings, 15);
+      assert.equal(data.summary.capturedPaise, 0);
+      if (role === "player") {
+        assert.equal(data.progress.games, 15);
+        assert.equal(data.progress.points, 1500);
+        assert.equal(data.progress.history.length, 15);
+      }
+      console.log(`PASS: ${role} month history, 15 games, zero fabricated collections.`);
+    }
     console.log(`PASS: ${role} hosted login, correct destination and access boundaries.`);
   } finally {
     await fetch(base + "/api/auth/sign-out", { method: "POST", headers: { Cookie: cookie, Origin: base, "Content-Type": "application/json" }, body: "{}" });
