@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { cache } from "react";
 import { auth } from "./auth";
 import { db } from "./db";
 import { DEMO_ORGANIZATION, isDemoAdministrator } from "@/lib/demo-access";
@@ -18,7 +19,7 @@ export class AppError extends Error {
     super(message);
   }
 }
-export async function currentUser() {
+export const currentUser = cache(async function currentUser() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) throw new AppError(401, "Please sign in.");
   const user = await db.user.findUniqueOrThrow({
@@ -27,7 +28,7 @@ export async function currentUser() {
   if (user.suspended || !user.emailVerified)
     throw new AppError(403, "Account access is unavailable.");
   return user;
-}
+});
 export async function admin(user: {
   id: string;
   role: string;

@@ -32,7 +32,7 @@ type Venue = {
   approved: boolean;
   areas: { id: string; name: string; sport: string; slots: Slot[] }[];
 };
-type Data = {
+export type RecordsData = {
   matches?: Match[];
   slots?: Slot[];
   name?: string;
@@ -227,17 +227,24 @@ export const date = (s: string) =>
     dateStyle: "medium",
     timeStyle: "short",
   }) + " IST";
-export function Records({ view }: { view: string }) {
+export function Records({
+  view,
+  initialData,
+}: {
+  view: string;
+  initialData?: RecordsData;
+}) {
   const urlQuery = useSearchParams().toString();
   const [data, setData] = useState<
-      Data | Venue[] | Payment[] | Notice[] | null
-    >(null),
+      RecordsData | Venue[] | Payment[] | Notice[] | null
+    >(initialData ?? null),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(true),
+    [busy, setBusy] = useState(!initialData),
     [version, setVersion] = useState(0),
     [query, setQuery] = useState("");
   const done = () => setVersion((v) => v + 1);
   useEffect(() => {
+    if (initialData && version === 0 && !query && !urlQuery) return;
     const controller = new AbortController();
     fetch(
       "/api/data?view=" +
@@ -261,8 +268,8 @@ export function Records({ view }: { view: string }) {
         if (!controller.signal.aborted) setBusy(false);
       });
     return () => controller.abort();
-  }, [view, version, query, urlQuery]);
-  const info = (data && !Array.isArray(data) ? data : {}) as Data;
+  }, [view, version, query, urlQuery, initialData]);
+  const info = (data && !Array.isArray(data) ? data : {}) as RecordsData;
   return (
     <>
       <p className="tag">TRUF community</p>
