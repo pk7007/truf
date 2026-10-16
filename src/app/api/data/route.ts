@@ -4,6 +4,7 @@ import { currentUser, reportScope, admin, AppError } from "@/server/access";
 import { DEMO_ORGANIZATION, isDemoAdministrator } from "@/lib/demo-access";
 import { canReadMatch } from "@/server/booking";
 import { db } from "@/server/db";
+import { walletWithdrawalSummary } from "@/server/wallet";
 export async function GET(request: Request) {
   try {
     const user = await currentUser(),
@@ -68,8 +69,15 @@ export async function GET(request: Request) {
             userEmail: wallet.user.email,
           })),
         );
+        const withdrawals = await db.walletWithdrawal.findMany({
+          where: { user: userWhere },
+          include: { user: { select: { name: true, email: true } } },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        });
         return Response.json({
           mode: "ADMIN",
+          readOnly: isDemoAdministrator(user),
           currency: "INR",
           balancePaise: wallets.reduce(
             (sum, wallet) => sum + wallet.balancePaise,
@@ -85,10 +93,12 @@ export async function GET(request: Request) {
           entries: entries
             .sort((a, b) => +b.createdAt - +a.createdAt)
             .slice(0, 100),
+          withdrawals,
           topUps: [],
           testMode: !process.env.RAZORPAY_KEY_ID?.startsWith("rzp_test_")
             ? "UNAVAILABLE"
             : "TEST",
+          generatedAt: new Date().toISOString(),
         });
       }
       const wallet = await db.wallet.upsert({
@@ -99,11 +109,18 @@ export async function GET(request: Request) {
           entries: { orderBy: { createdAt: "desc" }, take: 100 },
         },
       });
+      const withdrawal = await walletWithdrawalSummary(user.id);
       return Response.json({
         id: wallet.id,
         currency: wallet.currency,
         balancePaise: wallet.balancePaise,
         entries: wallet.entries,
+        ...withdrawal,
+        withdrawals: await db.walletWithdrawal.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+        }),
         topUps: await db.walletTopUp.findMany({
           where: { userId: user.id },
           orderBy: { createdAt: "desc" },
@@ -112,6 +129,7 @@ export async function GET(request: Request) {
         testMode: !process.env.RAZORPAY_KEY_ID?.startsWith("rzp_test_")
           ? "UNAVAILABLE"
           : "TEST",
+        generatedAt: new Date().toISOString(),
       });
     }
     if (view === "notifications")
@@ -128,6 +146,7 @@ export async function GET(request: Request) {
         email: user.email,
         sports: user.sports,
         locality: user.locality,
+        accountType: user.accountType,
         twoFactorEnabled: user.twoFactorEnabled,
         memberships: await db.membership.findMany({
           where: { userId: user.id },

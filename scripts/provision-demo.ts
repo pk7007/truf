@@ -27,6 +27,7 @@ export async function provisionDemo(
             email,
             name: `TRUF Demo ${role === "admin" ? "Administrator" : role === "owner" ? "Owner" : "Player"}`,
             role: role === "admin" ? "ADMIN" : "PLAYER",
+            accountType: role === "owner" ? "OWNER" : "PLAYER",
             emailVerified: true,
             accounts: {
               create: {

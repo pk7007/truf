@@ -50,6 +50,22 @@ export default function Help() {
         </p>
       </section>
       <section className="card">
+        <h2>TRUF Wallet and owner withdrawals</h2>
+        <p>
+          Players add booking balance through the configured payment provider.
+          Match shares debit the wallet and eligible cancellations credit it
+          immediately. Player balances cannot be transferred or withdrawn as
+          cash during the pilot.
+        </p>
+        <p>
+          Approved turf owners can request withdrawals only from completed-game
+          settlements. A request reserves the amount until an administrator
+          approves, rejects, or the owner cancels it. Approval records the
+          payout decision; an actual bank or UPI transfer requires completed KYC
+          and a connected payout provider.
+        </p>
+      </section>
+      <section className="card">
         <h2>Set up your authenticator</h2>
         <p>
           Under Account & security, enter your password and start setup once.

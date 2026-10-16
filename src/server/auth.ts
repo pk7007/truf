@@ -32,6 +32,7 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       role: { type: "string", defaultValue: "PLAYER", input: false },
+      accountType: { type: "string", defaultValue: "PLAYER", input: true },
       suspended: { type: "boolean", defaultValue: false, input: false },
     },
   },

@@ -137,12 +137,36 @@ export async function seedDemoMonth(
           ],
         });
       }
+      const ownerWallet = await tx.wallet.upsert({
+        where: { userId: owner.userId },
+        create: { userId: owner.userId },
+        update: {},
+      });
+      const settlementAmount = 800000;
+      const settlementBalance = ownerWallet.balancePaise + settlementAmount;
+      await tx.wallet.update({
+        where: { id: ownerWallet.id },
+        data: { balancePaise: settlementBalance },
+      });
+      await tx.walletEntry.create({
+        data: {
+          walletId: ownerWallet.id,
+          type: "SETTLEMENT",
+          amountPaise: settlementAmount,
+          balanceAfterPaise: settlementBalance,
+          referenceType: "MATCH",
+          referenceId: batch,
+          description: "Completed venue bookings · fictional settlement",
+          idempotencyKey: `demo-settlement:${accountBatch}-owner`,
+          createdAt: new Date(today - 2 * 86400000),
+        },
+      });
       const summary = {
         completed: 15,
         upcoming: 3,
         points: 1500,
         hours: 15,
-      from: istDay(new Date(today - 29 * 86400000)),
+        from: istDay(new Date(today - 29 * 86400000)),
         to: istDay(new Date(today - 86400000)),
         fictional: true,
       };

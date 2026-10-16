@@ -16,7 +16,11 @@ import {
   serial,
   closeMatch,
 } from "../src/server/booking";
-import { postWalletEntry } from "../src/server/wallet";
+import {
+  cancelWalletWithdrawal,
+  postWalletEntry,
+  requestWalletWithdrawal,
+} from "../src/server/wallet";
 import { analytics } from "../src/server/analytics";
 import { requireOrganization } from "../src/server/access";
 import { processJob } from "../src/server/worker";
@@ -243,6 +247,44 @@ suite("database booking and tenant isolation", () => {
         where: { idempotencyKey: `settlement:${m.id}:${owner.id}` },
       }),
     ).toBe(1);
+  });
+  it("reserves and releases approved owner withdrawal funds", async () => {
+    await serial((tx) =>
+      postWalletEntry(tx, {
+        userId: owner.id,
+        type: "SETTLEMENT",
+        amountPaise: 100000,
+        direction: "CREDIT",
+        referenceType: "TEST",
+        referenceId: prefix,
+        description: "Withdrawal test settlement",
+        idempotencyKey: prefix + "-withdrawal-settlement",
+      }),
+    );
+    const before = await db.wallet.findUniqueOrThrow({
+      where: { userId: owner.id },
+    });
+    const request = await requestWalletWithdrawal(owner, 50000, "BANK");
+    const held = await db.wallet.findUniqueOrThrow({
+      where: { userId: owner.id },
+    });
+    expect(held.balancePaise).toBe(before.balancePaise - 50000);
+    expect(request.status).toBe("REQUESTED");
+    await cancelWalletWithdrawal(owner, request.id);
+    const released = await db.wallet.findUniqueOrThrow({
+      where: { userId: owner.id },
+    });
+    expect(released.balancePaise).toBe(before.balancePaise);
+    expect(
+      (
+        await db.walletWithdrawal.findUniqueOrThrow({
+          where: { id: request.id },
+        })
+      ).status,
+    ).toBe("CANCELLED");
+    await expect(requestWalletWithdrawal(player, 50000, "UPI")).rejects.toThrow(
+      "approved turf-owner",
+    );
   });
   it("refunds late captures without reopening an expired match", async () => {
     const m = await match();

@@ -39,6 +39,7 @@ export type RecordsData = {
   email?: string;
   twoFactorEnabled?: boolean;
   locality?: string;
+  accountType?: string;
   sports?: string[];
   memberships?: {
     organization: { id: string; name: string; status: string };
@@ -76,6 +77,10 @@ type WalletData = {
   walletCount?: number;
   creditsPaise?: number;
   debitsPaise?: number;
+  canWithdraw?: boolean;
+  withdrawablePaise?: number;
+  generatedAt?: string;
+  readOnly?: boolean;
   testMode: "TEST" | "UNAVAILABLE";
   entries: {
     id: string;
@@ -92,6 +97,15 @@ type WalletData = {
     amountPaise: number;
     status: string;
     createdAt: string;
+  }[];
+  withdrawals: {
+    id: string;
+    amountPaise: number;
+    payoutMethod: string;
+    status: string;
+    note?: string | null;
+    createdAt: string;
+    user?: { name: string; email: string };
   }[];
 };
 type CheckoutResult = {
@@ -266,6 +280,8 @@ export const date = (s: string) =>
 
 function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
   const [amount, setAmount] = useState("500");
+  const [withdrawalAmount, setWithdrawalAmount] = useState("500");
+  const [payoutMethod, setPayoutMethod] = useState("BANK");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   async function topUp() {
@@ -320,6 +336,23 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
       setBusy(false);
     }
   }
+  async function withdraw() {
+    setBusy(true);
+    setMessage("");
+    try {
+      await action({
+        action: "wallet-withdraw",
+        amountPaise: Math.round(Number(withdrawalAmount) * 100),
+        payoutMethod,
+      });
+      setMessage("Withdrawal request submitted. The amount is now reserved.");
+      done();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Withdrawal failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <>
       <section className="wallet-hero card">
@@ -366,6 +399,178 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
           </div>
         )}
       </section>
+      {data.mode !== "ADMIN" && data.canWithdraw && (
+        <section className="card withdrawal-panel">
+          <div>
+            <p className="eyebrow">Owner earnings</p>
+            <h2>Withdraw earnings</h2>
+            <p className="muted">
+              Available to withdraw:{" "}
+              <strong>{money(data.withdrawablePaise || 0)}</strong>. Requests
+              reserve funds immediately and require administrator review.
+            </p>
+          </div>
+          <div className="withdrawal-form">
+            <label>
+              Amount (₹)
+              <input
+                type="number"
+                min="500"
+                max="50000"
+                step="100"
+                value={withdrawalAmount}
+                onChange={(event) => setWithdrawalAmount(event.target.value)}
+              />
+            </label>
+            <label>
+              Preferred payout method
+              <select
+                value={payoutMethod}
+                onChange={(event) => setPayoutMethod(event.target.value)}
+              >
+                <option value="BANK">Verified bank account</option>
+                <option value="UPI">Verified UPI account</option>
+              </select>
+            </label>
+            <button
+              className="primary"
+              onClick={withdraw}
+              disabled={busy || (data.withdrawablePaise || 0) < 50000}
+            >
+              {busy ? "Submitting…" : "Request withdrawal"}
+            </button>
+          </div>
+          <small className="muted">
+            Pilot workflow only. Actual payout starts after KYC and a payout
+            provider are connected.
+          </small>
+        </section>
+      )}
+      {!!data.withdrawals?.length && (
+        <section className="card">
+          <div className="row between">
+            <div>
+              <p className="eyebrow">Payout queue</p>
+              <h2>
+                {data.mode === "ADMIN"
+                  ? "Withdrawal review"
+                  : "Withdrawal requests"}
+              </h2>
+            </div>
+            {data.readOnly && <span className="badge">Demo · read only</span>}
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Requested</th>
+                  {data.mode === "ADMIN" && <th>Owner</th>}
+                  <th>Method</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.withdrawals.map((withdrawal) => (
+                  <tr key={withdrawal.id}>
+                    <td>{date(withdrawal.createdAt)}</td>
+                    {data.mode === "ADMIN" && (
+                      <td>
+                        {withdrawal.user?.name}
+                        <br />
+                        <small>{withdrawal.user?.email}</small>
+                      </td>
+                    )}
+                    <td>{withdrawal.payoutMethod}</td>
+                    <td>{money(withdrawal.amountPaise)}</td>
+                    <td>
+                      <span
+                        className={`badge status-${withdrawal.status.toLowerCase()}`}
+                      >
+                        {withdrawal.status}
+                      </span>
+                    </td>
+                    <td>
+                      {data.mode === "ADMIN" &&
+                      withdrawal.status === "REQUESTED" &&
+                      !data.readOnly ? (
+                        <div className="row">
+                          <ActionButton
+                            body={{
+                              action: "wallet-withdraw-review",
+                              id: withdrawal.id,
+                              decision: "APPROVED",
+                            }}
+                            done={done}
+                          >
+                            Approve
+                          </ActionButton>
+                          <ActionButton
+                            body={{
+                              action: "wallet-withdraw-review",
+                              id: withdrawal.id,
+                              decision: "REJECTED",
+                            }}
+                            done={done}
+                          >
+                            Reject
+                          </ActionButton>
+                        </div>
+                      ) : data.mode !== "ADMIN" &&
+                        withdrawal.status === "REQUESTED" ? (
+                        <ActionButton
+                          body={{
+                            action: "wallet-withdraw-cancel",
+                            id: withdrawal.id,
+                          }}
+                          done={done}
+                        >
+                          Cancel request
+                        </ActionButton>
+                      ) : (
+                        withdrawal.note || "—"
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+      {data.mode !== "ADMIN" && !!data.topUps?.length && (
+        <section className="card">
+          <p className="eyebrow">Payment reconciliation</p>
+          <h2>Recent top-ups</h2>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Created</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.topUps.map((topUp) => (
+                  <tr key={topUp.id}>
+                    <td>{date(topUp.createdAt)}</td>
+                    <td>{money(topUp.amountPaise)}</td>
+                    <td>
+                      <span
+                        className={`badge status-${topUp.status.toLowerCase()}`}
+                      >
+                        {topUp.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
       <section className="card">
         <div className="row between">
           <div>
@@ -427,6 +632,7 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
         TRUF Wallet is a closed-loop booking balance. It is not a bank account
         and cannot be transferred between users or withdrawn as cash during the
         pilot.
+        {data.generatedAt && <> · Last synced {date(data.generatedAt)}</>}
       </p>
     </>
   );
@@ -473,6 +679,34 @@ export function Records({
       });
     return () => controller.abort();
   }, [view, version, query, urlQuery, initialData]);
+  useEffect(() => {
+    if (
+      ![
+        "wallet",
+        "matches",
+        "discover",
+        "owner-bookings",
+        "notifications",
+        "venues",
+        "payments",
+        "moderation",
+      ].includes(view)
+    )
+      return;
+    const refresh = () => {
+      if (document.visibilityState === "visible")
+        setVersion((value) => value + 1);
+    };
+    const timer = window.setInterval(
+      refresh,
+      view === "wallet" ? 10000 : 20000,
+    );
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [view]);
   const info = (data && !Array.isArray(data) ? data : {}) as RecordsData;
   return (
     <>
@@ -737,7 +971,11 @@ export function Records({
                   done={done}
                 />
                 <ActionForm
-                  title="Apply as a turf owner"
+                  title={
+                    info.accountType === "OWNER"
+                      ? "Register your turf business"
+                      : "Apply as a turf owner"
+                  }
                   kind="organization"
                   fields={[{ name: "name", label: "Business name" }]}
                   done={done}

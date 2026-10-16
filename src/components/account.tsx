@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { QRCodeSVG } from "qrcode.react";
 import { portals, type Portal } from "@/lib/login-portals";
@@ -17,6 +17,8 @@ export function Account({
   portal?: Portal;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const ownerSignup = searchParams.get("type") === "owner";
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState("");
@@ -78,14 +80,20 @@ export function Account({
           const f = new FormData(e.currentTarget);
           try {
             const email = String(f.get("email") || ""),
-              password = String(f.get("password") || "");
+              password = String(f.get("password") || ""),
+              accountType =
+                String(f.get("accountType")) === "OWNER" ? "OWNER" : "PLAYER";
             const result =
               mode === "register"
                 ? await authClient.signUp.email({
                     email,
                     password,
                     name: String(f.get("name")),
-                    callbackURL: "/app/discover",
+                    accountType,
+                    callbackURL:
+                      accountType === "OWNER"
+                        ? "/app/settings"
+                        : "/app/discover",
                   })
                 : mode === "forgot-password"
                   ? await authClient.requestPasswordReset({
@@ -112,7 +120,9 @@ export function Account({
             if (result.error) throw Error(result.error.message);
             if (mode === "register")
               setNotice(
-                "Check your email to verify your account before signing in.",
+                accountType === "OWNER"
+                  ? "Check your email to verify your account, then register your turf business for approval."
+                  : "Check your email to verify your account before signing in.",
               );
             else if (mode === "forgot-password")
               setNotice(
@@ -135,10 +145,43 @@ export function Account({
         }}
       >
         {mode === "register" && (
-          <label>
-            Your name
-            <input name="name" required minLength={2} autoComplete="name" />
-          </label>
+          <>
+            <fieldset className="account-choice">
+              <legend>What do you want to use TRUF as?</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="accountType"
+                  value="PLAYER"
+                  defaultChecked={!ownerSignup}
+                />
+                <span>
+                  <strong>Player</strong>
+                  Find games, join teams, pay shares, and track your progress.
+                </span>
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="accountType"
+                  value="OWNER"
+                  defaultChecked={ownerSignup}
+                />
+                <span>
+                  <strong>Turf owner</strong>
+                  Apply for venue approval, publish slots, and manage bookings.
+                </span>
+              </label>
+            </fieldset>
+            <label>
+              Your name
+              <input name="name" required minLength={2} autoComplete="name" />
+            </label>
+            <p className="muted">
+              Staff and administrator accounts are added by an approved owner or
+              TRUF administrator after signup.
+            </p>
+          </>
         )}
         {!["two-factor", "reset-password"].includes(mode) && (
           <label>
@@ -195,8 +238,12 @@ export function Account({
       )}
       <div className="row" style={{ marginTop: 24 }}>
         <Link href="/login">Choose another portal</Link>
-        {(!portal || portal === "player") && (
-          <Link href="/register">Create an account</Link>
+        {(!portal || portal === "player" || portal === "owner") && (
+          <Link
+            href={portal === "owner" ? "/register?type=owner" : "/register"}
+          >
+            Create an account
+          </Link>
         )}
         <Link
           href={

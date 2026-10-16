@@ -23,7 +23,12 @@ import { db } from "@/server/db";
 import { SPORTS } from "@/lib/rules";
 import { limit } from "@/server/rate-limit";
 import { isDemoAdministrator } from "@/lib/demo-access";
-import { createWalletTopUp } from "@/server/wallet";
+import {
+  cancelWalletWithdrawal,
+  createWalletTopUp,
+  requestWalletWithdrawal,
+  reviewWalletWithdrawal,
+} from "@/server/wallet";
 export async function POST(request: Request) {
   try {
     sameOrigin(request);
@@ -76,6 +81,25 @@ export async function POST(request: Request) {
         result = await createWalletTopUp(
           user,
           z.coerce.number().int().parse(raw.amountPaise),
+        );
+        break;
+      case "wallet-withdraw":
+        result = await requestWalletWithdrawal(
+          user,
+          z.coerce.number().int().parse(raw.amountPaise),
+          z.enum(["BANK", "UPI"]).parse(raw.payoutMethod),
+        );
+        break;
+      case "wallet-withdraw-cancel":
+        result = await cancelWalletWithdrawal(user, z.string().parse(id));
+        break;
+      case "wallet-withdraw-review":
+        await admin(user);
+        result = await reviewWalletWithdrawal(
+          user,
+          z.string().parse(id),
+          z.enum(["APPROVED", "REJECTED"]).parse(raw.decision),
+          z.string().max(200).optional().parse(raw.note),
         );
         break;
       case "withdraw":

@@ -52,6 +52,9 @@ suite("authorized hosted demo provisioning", () => {
         }),
       ).toBe(true);
       expect(user.role).toBe(credential.role === "admin" ? "ADMIN" : "PLAYER");
+      expect(user.accountType).toBe(
+        credential.role === "owner" ? "OWNER" : "PLAYER",
+      );
       expect(user.twoFactorEnabled).toBe(false);
       expect(user.memberships.length).toBe(credential.role === "owner" ? 1 : 0);
     }

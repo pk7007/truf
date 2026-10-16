@@ -31,7 +31,7 @@ export default function Login() {
         })}
       </div>
       <p className="muted">
-        New to TRUF? <Link href="/register">Create a player account</Link>
+        New to TRUF? <Link href="/register">Create an account</Link>
       </p>
     </main>
   );

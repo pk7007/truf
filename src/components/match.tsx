@@ -47,6 +47,18 @@ export function MatchDetail({ id }: { id: string }) {
       });
     return () => controller.abort();
   }, [id, version, query]);
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible")
+        setVersion((value) => value + 1);
+    };
+    const timer = window.setInterval(refresh, 10000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
   async function payFromWallet() {
     if (busy) return;
     setBusy(true);
