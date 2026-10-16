@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { hashPassword } from "better-auth/crypto";
 import { db } from "../src/server/db";
+import { postWalletEntry } from "../src/server/wallet";
 import { seedDemoWeek } from "./demo-week";
 async function main() {
   if (
@@ -28,10 +29,13 @@ async function main() {
         email: id + "@truf.local",
         emailVerified: true,
         role,
+        accountType: id === "owner" || id === "other" ? "OWNER" : "PLAYER",
         locality: "Chennai",
         sports: ["Football", "Badminton"],
       },
-      update: {},
+      update: {
+        accountType: id === "owner" || id === "other" ? "OWNER" : "PLAYER",
+      },
     });
     await db.account.upsert({
       where: { id: "seed-account-" + id },
@@ -45,6 +49,38 @@ async function main() {
       update: { password: hash },
     });
   }
+  await db.$transaction(async (tx) => {
+    await postWalletEntry(tx, {
+      userId: "seed-player",
+      type: "TOP_UP",
+      amountPaise: 500000,
+      direction: "CREDIT",
+      referenceType: "DEMO",
+      referenceId: "local-player-opening-balance",
+      description: "Fictional local-demo wallet balance",
+      idempotencyKey: "seed:wallet:player",
+    });
+    await postWalletEntry(tx, {
+      userId: "seed-owner",
+      type: "SETTLEMENT",
+      amountPaise: 800000,
+      direction: "CREDIT",
+      referenceType: "DEMO",
+      referenceId: "local-owner-settlement",
+      description: "Completed venue bookings · fictional settlement",
+      idempotencyKey: "seed:wallet:owner",
+    });
+    await postWalletEntry(tx, {
+      userId: "seed-other",
+      type: "SETTLEMENT",
+      amountPaise: 600000,
+      direction: "CREDIT",
+      referenceType: "DEMO",
+      referenceId: "local-second-owner-settlement",
+      description: "Completed venue bookings · fictional settlement",
+      idempotencyKey: "seed:wallet:other",
+    });
+  });
   for (let n = 0; n < 2; n++) {
     const org = "seed-org-" + n,
       venue = "seed-venue-" + n;
@@ -189,4 +225,3 @@ async function main() {
   );
 }
 main().finally(() => db.$disconnect());
-

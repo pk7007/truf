@@ -84,7 +84,9 @@ async function main() {
   run(["node_modules/prisma/build/index.js", "generate"]);
   run(["node_modules/prisma/build/index.js", "migrate", "deploy"]);
   run(["node_modules/tsx/dist/cli.mjs", "scripts/seed.ts"]);
-  run(["node_modules/next/dist/bin/next", "build"]);
+  // Turbopack can fail to create its CSS helper process on some Windows hosts.
+  // Webpack is the stable production builder for the one-click local launcher.
+  run(["node_modules/next/dist/bin/next", "build", "--webpack"]);
   const web = start([
     "node_modules/next/dist/bin/next",
     "start",

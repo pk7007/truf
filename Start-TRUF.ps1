@@ -4,7 +4,7 @@ $trufNode = $null
 $trufBundled = Join-Path $env:USERPROFILE '.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
 if (Test-Path -LiteralPath $trufBundled) { $trufNode = $trufBundled }
 if (-not $trufNode) { $trufNode = (Get-Command node -ErrorAction Stop).Source }
-$trufMajor = [int](& $trufNode -p 'process.versions.node.split(".")[0]')
+$trufMajor = [int](& $trufNode -p 'process.versions.node.split(String.fromCharCode(46))[0]')
 if ($trufMajor -lt 24) { throw 'Install Node.js 24 LTS, then run Start-TRUF.ps1 again.' }
 if (-not (Test-Path -LiteralPath (Join-Path $trufRoot 'node_modules'))) { throw 'Run npm ci with Node.js 24 before starting TRUF.' }
 $trufData = Join-Path $trufRoot '.data'
