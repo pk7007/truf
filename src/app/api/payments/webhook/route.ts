@@ -3,6 +3,7 @@ import { db } from "@/server/db";
 import { verifySignature, razorpay, CapturedPayment } from "@/server/payments";
 import { capture } from "@/server/booking";
 import { refreshRefund } from "@/server/refunds";
+import { captureWalletTopUp } from "@/server/wallet";
 export async function POST(request: Request) {
   const raw = await request.text();
   if (raw.length > 100000) return new Response("Too large", { status: 413 });
@@ -27,11 +28,16 @@ export async function POST(request: Request) {
       const paymentId = event.payload?.payment?.entity?.id;
       if (typeof paymentId !== "string")
         return new Response("Missing payment", { status: 400 });
-      await capture(
-        await razorpay<CapturedPayment>(
-          "payments/" + encodeURIComponent(paymentId),
-        ),
+      const payment = await razorpay<CapturedPayment>(
+        "payments/" + encodeURIComponent(paymentId),
       );
+      if (
+        await db.walletTopUp.findUnique({
+          where: { providerOrderId: payment.order_id },
+        })
+      )
+        await captureWalletTopUp(payment);
+      else await capture(payment);
     }
     if (
       ["refund.processed", "refund.failed", "refund.created"].includes(

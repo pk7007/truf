@@ -4,6 +4,7 @@ import { closeMatch, serial, event, capture } from "./booking";
 import { notify } from "./jobs";
 import { razorpay, CapturedPayment } from "./payments";
 import { recordProviderRefund, type ProviderRefund } from "./refunds";
+import { captureWalletTopUp, postWalletEntry } from "./wallet";
 export async function processJob(job: Job) {
   const p = job.payload as Record<string, string>;
   if (job.kind === "EXPIRE")
@@ -16,9 +17,58 @@ export async function processJob(job: Job) {
     await serial(async (tx) => {
       const m = await tx.match.findUnique({
         where: { id: p.matchId },
-        include: { slot: true },
+        include: {
+          slot: {
+            include: {
+              area: {
+                include: {
+                  venue: {
+                    include: {
+                      organization: {
+                        include: {
+                          memberships: {
+                            where: { role: "OWNER" },
+                            orderBy: { id: "asc" },
+                            take: 1,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          participations: {
+            where: { status: "PAID" },
+            select: { id: true },
+          },
+        },
       });
       if (m?.status === "CONFIRMED" && m.slot.endsAt <= new Date()) {
+        const owner = m.slot.area.venue.organization.memberships[0];
+        const walletDebits = await tx.walletEntry.findMany({
+          where: {
+            type: "BOOKING",
+            referenceType: "PARTICIPATION",
+            referenceId: { in: m.participations.map((member) => member.id) },
+          },
+        });
+        const settlement = walletDebits.reduce(
+          (sum, entry) => sum + entry.amountPaise,
+          0,
+        );
+        if (owner && settlement > 0)
+          await postWalletEntry(tx, {
+            userId: owner.userId,
+            type: "SETTLEMENT",
+            amountPaise: settlement,
+            direction: "CREDIT",
+            referenceType: "MATCH",
+            referenceId: m.id,
+            description: m.title + " · completed booking settlement",
+            idempotencyKey: "settlement:" + m.id + ":" + owner.userId,
+          });
         await tx.match.update({
           where: { id: m.id },
           data: { status: "COMPLETED", completedAt: new Date() },
@@ -187,6 +237,57 @@ export async function reconcile() {
     } finally {
       await db.paymentOrder.update({
         where: { id: order.id },
+        data: { reconciledAt: new Date() },
+      });
+    }
+  }
+  const topUps = await db.walletTopUp.findMany({
+    where: { status: { in: ["CREATED", "CREATING"] } },
+    take: 100,
+    orderBy: { reconciledAt: { sort: "asc", nulls: "first" } },
+  });
+  for (const topUp of topUps) {
+    try {
+      let providerId = topUp.providerOrderId;
+      if (!providerId) {
+        const result = await razorpay<{
+          items: {
+            id: string;
+            receipt: string;
+            amount: number;
+            currency: string;
+          }[];
+        }>("orders?receipt=" + encodeURIComponent(topUp.id));
+        const found = result.items.find(
+          (order) =>
+            order.receipt === topUp.id &&
+            order.amount === topUp.amountPaise &&
+            order.currency === "INR",
+        );
+        if (found) {
+          providerId = found.id;
+          await db.walletTopUp.update({
+            where: { id: topUp.id },
+            data: { providerOrderId: providerId, status: "CREATED" },
+          });
+        }
+      }
+      if (providerId) {
+        const payments = await razorpay<{ items: CapturedPayment[] }>(
+          "orders/" + providerId + "/payments",
+        );
+        for (const payment of payments.items)
+          if (payment.status === "captured") await captureWalletTopUp(payment);
+      }
+    } catch (error) {
+      console.error(
+        "Wallet top-up reconciliation requires retry",
+        topUp.id,
+        error instanceof Error ? error.message : "unknown",
+      );
+    } finally {
+      await db.walletTopUp.update({
+        where: { id: topUp.id },
         data: { reconciledAt: new Date() },
       });
     }

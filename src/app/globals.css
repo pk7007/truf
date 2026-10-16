@@ -152,6 +152,76 @@ small {
   background: #302844;
   color: #dbceff;
 }
+
+.wallet-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+  gap: clamp(24px, 5vw, 64px);
+  align-items: center;
+  padding: clamp(24px, 5vw, 52px);
+  margin-bottom: 22px;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 8% 18%,
+      rgba(124, 92, 255, 0.32),
+      transparent 36%
+    ),
+    linear-gradient(135deg, #17152d, #0e1020 62%, #15182a);
+  color: #fff;
+}
+.wallet-hero strong {
+  display: block;
+  margin: 8px 0 12px;
+  font-size: clamp(2.6rem, 7vw, 5.3rem);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+}
+.wallet-hero .eyebrow,
+.wallet-hero p,
+.wallet-hero small {
+  color: rgba(255, 255, 255, 0.76);
+}
+.wallet-top-up {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(12px);
+}
+.wallet-credit {
+  color: #14865d;
+  font-weight: 750;
+}
+.wallet-debit {
+  color: #c8485a;
+  font-weight: 750;
+}
+.wallet-note {
+  max-width: 760px;
+  margin: 18px 0;
+}
+.wallet-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.wallet-inline strong {
+  font-size: 1.2rem;
+}
+
+@media (max-width: 760px) {
+  .wallet-hero {
+    grid-template-columns: 1fr;
+  }
+}
 .content {
   min-width: 0;
   padding: 30px clamp(18px, 4vw, 60px);

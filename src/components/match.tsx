@@ -12,6 +12,7 @@ type Detail = {
   status: string;
   capacity: number;
   sharePaise: number;
+  walletBalancePaise: number;
   deadline: string | null;
   slot: { startsAt: string; area: { sport: string; venue: { name: string } } };
   participations: {
@@ -23,16 +24,6 @@ type Detail = {
   }[];
   events: { id: string; status: string; at: string }[];
 };
-type CheckoutResult = {
-  razorpay_order_id: string;
-  razorpay_payment_id: string;
-  razorpay_signature: string;
-};
-declare global {
-  interface Window {
-    Razorpay: new (options: Record<string, unknown>) => { open: () => void };
-  }
-}
 export function MatchDetail({ id }: { id: string }) {
   const query = useSearchParams().toString();
   const [data, setData] = useState<Detail | null>(null),
@@ -56,57 +47,20 @@ export function MatchDetail({ id }: { id: string }) {
       });
     return () => controller.abort();
   }, [id, version, query]);
-  async function pay() {
+  async function payFromWallet() {
     if (busy) return;
     setBusy(true);
     setError("");
     try {
-      const order = await action({
-        action: "checkout",
+      await action({
+        action: "wallet-pay",
         id,
         token: new URLSearchParams(location.search).get("token") || undefined,
       });
-      if (!window.Razorpay)
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement("script");
-          script.src = "https://checkout.razorpay.com/v1/checkout.js";
-          script.onload = () => resolve();
-          script.onerror = () => reject(Error("Checkout could not load."));
-          document.head.append(script);
-        });
-      new window.Razorpay({
-        key: order.key,
-        order_id: order.orderId,
-        amount: order.amount,
-        currency: "INR",
-        name: "TRUF · Test checkout",
-        handler: async (result: CheckoutResult) => {
-          try {
-            const r = await fetch("/api/payments/verify", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(result),
-            });
-            const d = await r.json();
-            if (!r.ok) setError(d.error);
-            else done();
-          } catch {
-            setError(
-              "We could not verify the payment yet. Check My payments before trying again.",
-            );
-          } finally {
-            setBusy(false);
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            setBusy(false);
-            done();
-          },
-        },
-      }).open();
+      done();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Checkout failed");
+      setError(e instanceof Error ? e.message : "Wallet payment failed");
+    } finally {
       setBusy(false);
     }
   }
@@ -163,14 +117,22 @@ export function MatchDetail({ id }: { id: string }) {
               Before confirmation, withdrawal starts a full refund. After
               confirmation, your refund starts only when a paid substitute takes
               your place. An incomplete match expires at its deadline and starts
-              full refunds. Refund timing depends on the payment provider.
+              full refunds. Wallet refunds appear instantly in your TRUF Wallet.
             </p>
+            <div className="wallet-inline">
+              <span>Available wallet balance</span>
+              <strong>{money(data.walletBalancePaise)}</strong>
+              {data.walletBalancePaise < data.sharePaise && (
+                <Link href="/app/wallet">Add money to wallet</Link>
+              )}
+            </div>
             <div className="row">
               <button
                 className="primary"
-                onClick={pay}
+                onClick={payFromWallet}
                 disabled={
                   busy ||
+                  data.walletBalancePaise < data.sharePaise ||
                   !["RECRUITING", "CONFIRMED"].includes(data.status) ||
                   data.participations.some(
                     (p) =>
@@ -180,13 +142,16 @@ export function MatchDetail({ id }: { id: string }) {
                 }
               >
                 {busy
-                  ? "Checkout in progress…"
+                  ? "Processing wallet payment…"
                   : data.participations.some(
                         (p) => p.userId === data.myId && p.status === "PAID",
                       )
                     ? "Your place is paid"
-                    : "Pay your share · test mode"}
+                    : "Pay from wallet · " + money(data.sharePaise)}
               </button>
+              <Link className="button" href="/app/wallet">
+                Open wallet
+              </Link>
               {data.participations.some(
                 (p) => p.userId === data.myId && p.status === "PAID",
               ) && (

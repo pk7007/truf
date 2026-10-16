@@ -26,6 +26,8 @@ model User {
   participations Participation[]
   notifications Notification[]
   claims RewardClaim[]
+  wallet Wallet?
+  walletTopUps WalletTopUp[]
 }
 model Session {
   id String @id
@@ -198,6 +200,46 @@ model Payment {
   order PaymentOrder @relation(fields:[orderId],references:[id])
   refunds Refund[]
   transfer Transfer?
+}
+model Wallet {
+  id String @id @default(cuid())
+  userId String @unique
+  currency String @default("INR")
+  balancePaise Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  entries WalletEntry[]
+}
+model WalletEntry {
+  id String @id @default(cuid())
+  walletId String
+  type String
+  amountPaise Int
+  balanceAfterPaise Int
+  status String @default("POSTED")
+  referenceType String
+  referenceId String
+  description String
+  idempotencyKey String @unique
+  createdAt DateTime @default(now())
+  wallet Wallet @relation(fields:[walletId],references:[id],onDelete:Cascade)
+  @@index([walletId,createdAt])
+  @@index([referenceType,referenceId])
+}
+model WalletTopUp {
+  id String @id @default(cuid())
+  userId String
+  providerOrderId String? @unique
+  providerPaymentId String? @unique
+  amountPaise Int
+  feePaise Int @default(0)
+  status String @default("CREATING")
+  createdAt DateTime @default(now())
+  capturedAt DateTime?
+  reconciledAt DateTime?
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([userId,createdAt])
 }
 model Refund {
   id String @id @default(cuid())

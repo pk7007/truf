@@ -18,6 +18,8 @@ export async function provisionDemo(
         const id = `${batchId}-${role}`;
         const email = `${role}@demo.truf.example`;
         const password = randomBytes(24).toString("base64url");
+        const walletBalance =
+          role === "player" ? 500000 : role === "owner" ? 1250000 : 0;
         // Create, not upsert: never promote or reset any pre-existing account.
         await tx.user.create({
           data: {
@@ -34,6 +36,26 @@ export async function provisionDemo(
                 password: await hashPassword(password),
               },
             },
+            ...(walletBalance
+              ? {
+                  wallet: {
+                    create: {
+                      balancePaise: walletBalance,
+                      entries: {
+                        create: {
+                          type: "TOP_UP",
+                          amountPaise: walletBalance,
+                          balanceAfterPaise: walletBalance,
+                          referenceType: "DEMO",
+                          referenceId: batchId,
+                          description: "Demo opening balance · fictional funds",
+                          idempotencyKey: `demo-opening:${id}`,
+                        },
+                      },
+                    },
+                  },
+                }
+              : {}),
           },
         });
         credentials.push({

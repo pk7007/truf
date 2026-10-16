@@ -28,7 +28,8 @@ export function AppNavigation({
     { href: "/app/discover", label: "Discover games", icon: Compass },
     { href: "/app/matches", label: "My matches", icon: CalendarDays },
     { href: "/app/progress", label: "Progress & rewards", icon: TrendingUp },
-    { href: "/app/payments", label: "My payments", icon: Wallet },
+    { href: "/app/wallet", label: "TRUF Wallet", icon: Wallet },
+    { href: "/app/payments", label: "Payment history", icon: Wallet },
     { href: "/app/notifications", label: "Notifications", icon: Bell },
     ...(owner
       ? [
@@ -69,6 +70,11 @@ export function AppNavigation({
           {
             href: "/app/payments?scope=admin",
             label: "All payments",
+            icon: Wallet,
+          },
+          {
+            href: "/app/wallet?scope=admin",
+            label: "Wallet control",
             icon: Wallet,
           },
         ]

@@ -68,6 +68,42 @@ type Notice = {
   href: string;
   readAt: string | null;
 };
+type WalletData = {
+  id?: string;
+  mode?: "ADMIN";
+  currency: string;
+  balancePaise: number;
+  walletCount?: number;
+  creditsPaise?: number;
+  debitsPaise?: number;
+  testMode: "TEST" | "UNAVAILABLE";
+  entries: {
+    id: string;
+    type: string;
+    amountPaise: number;
+    balanceAfterPaise: number;
+    description: string;
+    createdAt: string;
+    userName?: string;
+    userEmail?: string;
+  }[];
+  topUps: {
+    id: string;
+    amountPaise: number;
+    status: string;
+    createdAt: string;
+  }[];
+};
+type CheckoutResult = {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+};
+declare global {
+  interface Window {
+    Razorpay: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
 export async function action(body: Record<string, unknown>) {
   const r = await fetch("/api/actions", {
     method: "POST",
@@ -227,6 +263,174 @@ export const date = (s: string) =>
     dateStyle: "medium",
     timeStyle: "short",
   }) + " IST";
+
+function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
+  const [amount, setAmount] = useState("500");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  async function topUp() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const order = await action({
+        action: "wallet-top-up",
+        amountPaise: Math.round(Number(amount) * 100),
+      });
+      if (!window.Razorpay)
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://checkout.razorpay.com/v1/checkout.js";
+          script.onload = () => resolve();
+          script.onerror = () =>
+            reject(Error("Secure checkout could not load."));
+          document.head.append(script);
+        });
+      new window.Razorpay({
+        key: order.key,
+        order_id: order.orderId,
+        amount: order.amount,
+        currency: "INR",
+        name: "TRUF Wallet · Test mode",
+        description: "Add money to your TRUF Wallet",
+        handler: async (result: CheckoutResult) => {
+          try {
+            const response = await fetch("/api/payments/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(result),
+            });
+            const body = await response.json();
+            if (!response.ok) throw Error(body.error);
+            setMessage("Top-up complete. Your balance is updated.");
+            done();
+          } catch (error) {
+            setMessage(
+              error instanceof Error
+                ? error.message
+                : "Verification is pending.",
+            );
+          } finally {
+            setBusy(false);
+          }
+        },
+        modal: { ondismiss: () => setBusy(false) },
+      }).open();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Top-up failed.");
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <section className="wallet-hero card">
+        <div>
+          <p className="eyebrow">
+            {data.mode === "ADMIN"
+              ? "Wallets under management"
+              : "Available balance"}
+          </p>
+          <strong>{money(data.balancePaise)}</strong>
+          <p>
+            {data.mode === "ADMIN"
+              ? `${data.walletCount || 0} wallets · ${money(data.creditsPaise || 0)} credits · ${money(data.debitsPaise || 0)} booking debits`
+              : "Use this balance for any eligible TRUF match."}
+          </p>
+        </div>
+        {data.mode !== "ADMIN" && (
+          <div className="wallet-top-up">
+            <label>
+              Add money (₹)
+              <input
+                type="number"
+                min="100"
+                max="5000"
+                step="100"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+              />
+            </label>
+            <button
+              className="primary"
+              disabled={busy || data.testMode === "UNAVAILABLE"}
+              onClick={topUp}
+            >
+              {busy ? "Opening checkout…" : "Add with Razorpay"}
+            </button>
+            {data.testMode === "UNAVAILABLE" && (
+              <small>
+                Online top-ups are disabled until Razorpay test keys are
+                configured.
+              </small>
+            )}
+            {message && <p role="status">{message}</p>}
+          </div>
+        )}
+      </section>
+      <section className="card">
+        <div className="row between">
+          <div>
+            <p className="eyebrow">Ledger</p>
+            <h2>Wallet activity</h2>
+          </div>
+          <span className="badge">INR · protected ledger</span>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                {data.mode === "ADMIN" && <th>Account</th>}
+                <th>Details</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.entries.map((entry) => (
+                <tr key={entry.id}>
+                  <td>{date(entry.createdAt)}</td>
+                  {data.mode === "ADMIN" && (
+                    <td>
+                      {entry.userName}
+                      <br />
+                      <small>{entry.userEmail}</small>
+                    </td>
+                  )}
+                  <td>{entry.description}</td>
+                  <td>
+                    <span className="badge">
+                      {entry.type.replaceAll("_", " ")}
+                    </span>
+                  </td>
+                  <td
+                    className={
+                      entry.type === "BOOKING"
+                        ? "wallet-debit"
+                        : "wallet-credit"
+                    }
+                  >
+                    {entry.type === "BOOKING" ? "−" : "+"}
+                    {money(entry.amountPaise)}
+                  </td>
+                  <td>{money(entry.balanceAfterPaise)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!data.entries.length && (
+          <p className="empty">Your wallet has no activity yet.</p>
+        )}
+      </section>
+      <p className="muted wallet-note">
+        TRUF Wallet is a closed-loop booking balance. It is not a bank account
+        and cannot be transferred between users or withdrawn as cash during the
+        pilot.
+      </p>
+    </>
+  );
+}
 export function Records({
   view,
   initialData,
@@ -236,7 +440,7 @@ export function Records({
 }) {
   const urlQuery = useSearchParams().toString();
   const [data, setData] = useState<
-      RecordsData | Venue[] | Payment[] | Notice[] | null
+      RecordsData | Venue[] | Payment[] | Notice[] | WalletData | null
     >(initialData ?? null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(!initialData),
@@ -280,6 +484,7 @@ export function Records({
               discover: "Find your next game.",
               matches: "Your matches.",
               payments: "Every payment, clear.",
+              wallet: "Your money, clearly managed.",
               notifications: "Stay in the loop.",
               venues: "Your venues & slots.",
               "owner-bookings": "Manage match days.",
@@ -483,6 +688,9 @@ export function Records({
                 <p className="empty">No captured payments.</p>
               )}
             </div>
+          )}
+          {view === "wallet" && (
+            <WalletPanel data={data as WalletData} done={done} />
           )}
           {view === "notifications" && (
             <div className="cards">

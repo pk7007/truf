@@ -26,6 +26,7 @@ export default async function Page({
       "discover",
       "matches",
       "payments",
+      "wallet",
       "notifications",
       "venues",
       "owner-bookings",

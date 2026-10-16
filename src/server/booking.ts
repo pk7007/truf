@@ -6,6 +6,7 @@ import { validateCapacity } from "@/lib/rules";
 import { enqueue, notify } from "./jobs";
 import { CapturedPayment, razorpay } from "./payments";
 import { assertTestPayments } from "./env";
+import { postWalletEntry, refundWalletParticipation } from "./wallet";
 export async function serial<T>(
   work: (tx: Prisma.TransactionClient) => Promise<T>,
 ): Promise<T> {
@@ -299,6 +300,155 @@ export async function checkout(user: User, id: string, token?: string) {
     throw error;
   }
 }
+export async function walletCheckout(user: User, id: string, token?: string) {
+  await canReadMatch(user, id, token);
+  return serial(async (tx) => {
+    const m = await tx.match.findUniqueOrThrow({
+      where: { id },
+      include: { slot: true, participations: true, booking: true },
+    });
+    if (
+      !["RECRUITING", "CONFIRMED"].includes(m.status) ||
+      !m.booking ||
+      m.slot.startsAt <= new Date() ||
+      (m.status === "RECRUITING" && (!m.deadline || m.deadline <= new Date()))
+    )
+      throw new AppError(409, "Joining is closed.");
+    const existing = m.participations.find((p) => p.userId === user.id);
+    if (existing && ["PAID", "WAITING_REPLACEMENT"].includes(existing.status))
+      throw new AppError(409, "You already paid for this match.");
+    const conflict = await tx.participation.findFirst({
+      where: {
+        userId: user.id,
+        status: { in: ["PAID", "WAITING_REPLACEMENT"] },
+        match: {
+          status: { in: ["RECRUITING", "CONFIRMED"] },
+          slot: {
+            startsAt: { lt: m.slot.endsAt },
+            endsAt: { gt: m.slot.startsAt },
+          },
+        },
+      },
+    });
+    if (conflict)
+      throw new AppError(409, "You have an overlapping commitment.");
+    const waiting = m.participations.find(
+      (p) =>
+        p.status === "WAITING_REPLACEMENT" &&
+        !m.participations.some(
+          (x) => x.replacementFor === p.id && x.status === "PAID",
+        ),
+    );
+    const active = m.participations.filter((p) =>
+      ["PAID", "WAITING_REPLACEMENT"].includes(p.status),
+    ).length;
+    if (
+      (active >= m.capacity && !waiting) ||
+      (m.status === "CONFIRMED" && !waiting)
+    )
+      throw new AppError(409, "No place available.");
+    const participation = await tx.participation.upsert({
+      where: { matchId_userId: { matchId: id, userId: user.id } },
+      create: {
+        userId: user.id,
+        matchId: id,
+        status: "PAID",
+        replacementFor: waiting?.id,
+      },
+      update: {
+        status: "PAID",
+        reservedUntil: null,
+        currentOrderId: null,
+        replacementFor: waiting?.id || null,
+      },
+    });
+    await postWalletEntry(tx, {
+      userId: user.id,
+      type: "BOOKING",
+      amountPaise: m.sharePaise,
+      direction: "DEBIT",
+      referenceType: "PARTICIPATION",
+      referenceId: participation.id,
+      description: m.title + " · booking share",
+      idempotencyKey: "booking:" + participation.id,
+    });
+    if (waiting) {
+      const previous = await tx.participation.findUniqueOrThrow({
+        where: { id: waiting.id },
+        include: { orders: { include: { payments: true } } },
+      });
+      await refundWalletParticipation(
+        tx,
+        previous.id,
+        previous.userId,
+        "Refund · paid substitute found",
+      );
+      for (const order of previous.orders)
+        for (const payment of order.payments)
+          await refundPayment(
+            tx,
+            payment.id,
+            payment.amountPaise,
+            "Paid substitute found",
+          );
+      await tx.participation.update({
+        where: { id: previous.id },
+        data: { status: "WITHDRAWN" },
+      });
+    }
+    const count = await tx.participation.count({
+      where: { matchId: m.id, status: "PAID" },
+    });
+    if (count === m.capacity && m.status === "RECRUITING") {
+      await tx.match.update({
+        where: { id: m.id },
+        data: { status: "CONFIRMED", confirmedAt: new Date() },
+      });
+      await tx.booking.update({
+        where: { matchId: m.id },
+        data: { status: "CONFIRMED" },
+      });
+      await event(tx, m.id, "CONFIRMED");
+      await enqueue(
+        tx,
+        "complete:" + m.id,
+        "COMPLETE",
+        { matchId: m.id },
+        m.slot.endsAt,
+      );
+      await enqueue(
+        tx,
+        "remind:" + m.id,
+        "REMINDER",
+        { matchId: m.id },
+        new Date(+m.slot.startsAt - 3600000),
+      );
+      const members = await tx.participation.findMany({
+        where: { matchId: m.id, status: "PAID" },
+      });
+      for (const member of members)
+        await notify(
+          tx,
+          member.userId,
+          "Game confirmed",
+          m.title + " is ready to play.",
+          "/matches/" + m.id,
+        );
+    }
+    await notify(
+      tx,
+      user.id,
+      "Wallet payment complete",
+      "Your place is committed and your wallet receipt is ready.",
+      "/app/wallet",
+    );
+    await audit(tx, user.id, "WALLET_BOOKING", participation.id, {
+      matchId: m.id,
+      amountPaise: m.sharePaise,
+    });
+    return { ok: true, participationId: participation.id };
+  });
+}
 export async function refundPayment(
   tx: Prisma.TransactionClient,
   paymentId: string,
@@ -382,6 +532,12 @@ export async function capture(payment: CapturedPayment) {
       });
       if (previous.status !== "WAITING_REPLACEMENT")
         throw new AppError(409, "Replacement state changed.");
+      await refundWalletParticipation(
+        tx,
+        previous.id,
+        previous.userId,
+        "Refund · paid substitute found",
+      );
       for (const o of previous.orders)
         for (const q of o.payments)
           await refundPayment(tx, q.id, q.amountPaise, "Paid substitute found");
@@ -474,6 +630,12 @@ export async function withdraw(user: User, id: string) {
             q.amountPaise,
             "Withdrawal before confirmation",
           );
+      await refundWalletParticipation(
+        tx,
+        p.id,
+        p.userId,
+        "Refund · withdrawal before confirmation",
+      );
     } else throw new AppError(409, "Match is closed.");
     await audit(tx, user.id, "WITHDRAW", id);
   });
@@ -497,6 +659,12 @@ export async function closeMatch(
     for (const o of p.orders)
       for (const q of o.payments)
         await refundPayment(tx, q.id, q.amountPaise, status);
+    await refundWalletParticipation(
+      tx,
+      p.id,
+      p.userId,
+      "Refund · match " + status.toLowerCase(),
+    );
     await notify(
       tx,
       p.userId,

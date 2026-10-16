@@ -32,6 +32,9 @@ export async function GET(request: Request) {
         ...match,
         invitationHash: undefined,
         myId: user.id,
+        walletBalancePaise:
+          (await db.wallet.findUnique({ where: { userId: user.id } }))
+            ?.balancePaise || 0,
         canManage:
           (user.role === "ADMIN" && user.twoFactorEnabled) ||
           (await db.membership.count({
@@ -41,6 +44,74 @@ export async function GET(request: Request) {
               organization: { status: "APPROVED" },
             },
           })) > 0,
+      });
+    }
+    if (view === "wallet") {
+      if (q.get("scope") === "admin") {
+        if (!isDemoAdministrator(user)) await admin(user);
+        const userWhere = isDemoAdministrator(user)
+          ? { id: { startsWith: "hosted-demo-20261015-" } }
+          : {};
+        const wallets = await db.wallet.findMany({
+          where: { user: userWhere },
+          include: {
+            user: { select: { name: true, email: true } },
+            entries: { orderBy: { createdAt: "desc" }, take: 100 },
+          },
+          orderBy: { updatedAt: "desc" },
+          take: 100,
+        });
+        const entries = wallets.flatMap((wallet) =>
+          wallet.entries.map((entry) => ({
+            ...entry,
+            userName: wallet.user.name,
+            userEmail: wallet.user.email,
+          })),
+        );
+        return Response.json({
+          mode: "ADMIN",
+          currency: "INR",
+          balancePaise: wallets.reduce(
+            (sum, wallet) => sum + wallet.balancePaise,
+            0,
+          ),
+          walletCount: wallets.length,
+          creditsPaise: entries
+            .filter((entry) => entry.type !== "BOOKING")
+            .reduce((sum, entry) => sum + entry.amountPaise, 0),
+          debitsPaise: entries
+            .filter((entry) => entry.type === "BOOKING")
+            .reduce((sum, entry) => sum + entry.amountPaise, 0),
+          entries: entries
+            .sort((a, b) => +b.createdAt - +a.createdAt)
+            .slice(0, 100),
+          topUps: [],
+          testMode: !process.env.RAZORPAY_KEY_ID?.startsWith("rzp_test_")
+            ? "UNAVAILABLE"
+            : "TEST",
+        });
+      }
+      const wallet = await db.wallet.upsert({
+        where: { userId: user.id },
+        create: { userId: user.id },
+        update: {},
+        include: {
+          entries: { orderBy: { createdAt: "desc" }, take: 100 },
+        },
+      });
+      return Response.json({
+        id: wallet.id,
+        currency: wallet.currency,
+        balancePaise: wallet.balancePaise,
+        entries: wallet.entries,
+        topUps: await db.walletTopUp.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+        }),
+        testMode: !process.env.RAZORPAY_KEY_ID?.startsWith("rzp_test_")
+          ? "UNAVAILABLE"
+          : "TEST",
       });
     }
     if (view === "notifications")

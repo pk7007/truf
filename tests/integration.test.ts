@@ -10,11 +10,13 @@ import {
   requestMatch,
   approveHold,
   checkout,
+  walletCheckout,
   capture,
   withdraw,
   serial,
   closeMatch,
 } from "../src/server/booking";
+import { postWalletEntry } from "../src/server/wallet";
 import { analytics } from "../src/server/analytics";
 import { requireOrganization } from "../src/server/access";
 import { processJob } from "../src/server/worker";
@@ -159,6 +161,86 @@ suite("database booking and tenant isolation", () => {
     expect(
       await db.refund.count({
         where: { payment: { order: { participation: { matchId: m.id } } } },
+      }),
+    ).toBe(1);
+  });
+  it("debits bookings and credits refunds through the wallet ledger", async () => {
+    const opening = 40000;
+    await serial((tx) =>
+      postWalletEntry(tx, {
+        userId: player.id,
+        type: "TOP_UP",
+        amountPaise: opening,
+        direction: "CREDIT",
+        referenceType: "TEST",
+        referenceId: prefix,
+        description: "Test wallet funding",
+        idempotencyKey: prefix + "-wallet-funding",
+      }),
+    );
+    const before = await db.wallet.findUniqueOrThrow({
+      where: { userId: player.id },
+    });
+    const m = await match();
+    await approveHold(owner, m.id, new Date(Date.now() + 3600000));
+    await walletCheckout(player, m.id);
+    const paid = await db.wallet.findUniqueOrThrow({
+      where: { userId: player.id },
+    });
+    expect(paid.balancePaise).toBe(before.balancePaise - m.sharePaise);
+    await withdraw(player, m.id);
+    const refunded = await db.wallet.findUniqueOrThrow({
+      where: { userId: player.id },
+    });
+    expect(refunded.balancePaise).toBe(before.balancePaise);
+    const participation = await db.participation.findUniqueOrThrow({
+      where: { matchId_userId: { matchId: m.id, userId: player.id } },
+    });
+    expect(
+      await db.walletEntry.count({
+        where: { referenceId: participation.id },
+      }),
+    ).toBe(2);
+  });
+  it("settles completed wallet bookings to the turf owner", async () => {
+    await serial(async (tx) => {
+      for (const member of [player, other])
+        await postWalletEntry(tx, {
+          userId: member.id,
+          type: "TOP_UP",
+          amountPaise: 20000,
+          direction: "CREDIT",
+          referenceType: "TEST",
+          referenceId: prefix,
+          description: "Settlement test funding",
+          idempotencyKey: `${prefix}-settlement-funding-${member.id}`,
+        });
+    });
+    const m = await match();
+    await approveHold(owner, m.id, new Date(Date.now() + 3600000));
+    await walletCheckout(player, m.id);
+    await walletCheckout(other, m.id);
+    const ownerBefore =
+      (await db.wallet.findUnique({ where: { userId: owner.id } }))
+        ?.balancePaise || 0;
+    await db.slot.update({
+      where: { id: m.slotId },
+      data: {
+        startsAt: new Date(Date.now() - 7200000),
+        endsAt: new Date(Date.now() - 3600000),
+      },
+    });
+    const job = await db.job.findUniqueOrThrow({
+      where: { key: "complete:" + m.id },
+    });
+    await processJob(job);
+    const ownerAfter = await db.wallet.findUniqueOrThrow({
+      where: { userId: owner.id },
+    });
+    expect(ownerAfter.balancePaise).toBe(ownerBefore + 40000);
+    expect(
+      await db.walletEntry.count({
+        where: { idempotencyKey: `settlement:${m.id}:${owner.id}` },
       }),
     ).toBe(1);
   });

@@ -3,6 +3,7 @@ import { currentUser, sameOrigin, AppError } from "@/server/access";
 import { db } from "@/server/db";
 import { verifySignature, razorpay, CapturedPayment } from "@/server/payments";
 import { capture } from "@/server/booking";
+import { captureWalletTopUp } from "@/server/wallet";
 export async function POST(request: Request) {
   try {
     sameOrigin(request);
@@ -20,7 +21,15 @@ export async function POST(request: Request) {
         participation: { userId: user.id },
       },
     });
-    if (!order) throw new AppError(404, "Order unavailable.");
+    const topUp = order
+      ? null
+      : await db.walletTopUp.findFirst({
+          where: {
+            providerOrderId: input.razorpay_order_id,
+            userId: user.id,
+          },
+        });
+    if (!order && !topUp) throw new AppError(404, "Order unavailable.");
     if (
       !verifySignature(
         input.razorpay_order_id + "|" + input.razorpay_payment_id,
@@ -32,9 +41,10 @@ export async function POST(request: Request) {
     const payment = await razorpay<CapturedPayment>(
       "payments/" + encodeURIComponent(input.razorpay_payment_id),
     );
-    if (payment.order_id !== order.providerOrderId)
+    if (payment.order_id !== (order?.providerOrderId || topUp?.providerOrderId))
       throw new AppError(400, "Order mismatch.");
-    await capture(payment);
+    if (topUp) await captureWalletTopUp(payment);
+    else await capture(payment);
     return Response.json({ ok: true });
   } catch (e) {
     return Response.json(

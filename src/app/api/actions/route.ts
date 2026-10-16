@@ -13,6 +13,7 @@ import {
   requestMatch,
   approveHold,
   checkout,
+  walletCheckout,
   withdraw,
   serial,
   audit,
@@ -22,6 +23,7 @@ import { db } from "@/server/db";
 import { SPORTS } from "@/lib/rules";
 import { limit } from "@/server/rate-limit";
 import { isDemoAdministrator } from "@/lib/demo-access";
+import { createWalletTopUp } from "@/server/wallet";
 export async function POST(request: Request) {
   try {
     sameOrigin(request);
@@ -61,6 +63,19 @@ export async function POST(request: Request) {
           user,
           z.string().parse(id),
           z.string().optional().parse(raw.token),
+        );
+        break;
+      case "wallet-pay":
+        result = await walletCheckout(
+          user,
+          z.string().parse(id),
+          z.string().optional().parse(raw.token),
+        );
+        break;
+      case "wallet-top-up":
+        result = await createWalletTopUp(
+          user,
+          z.coerce.number().int().parse(raw.amountPaise),
         );
         break;
       case "withdraw":
