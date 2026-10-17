@@ -1,9 +1,14 @@
 import Link from "next/link";
-export const metadata = { title: "Help & booking policies · TRUF" };
+export const metadata = {
+  title: "Help & booking policies",
+  description:
+    "How TRUF bookings, payments, refunds, attendance, and account security work.",
+  alternates: { canonical: "/help" },
+};
 export default function Help() {
   return (
     <main className="hero prose-page">
-      <Link className="brand" href="/app/discover">
+      <Link className="brand" href="/">
         TRUF.
       </Link>
       <p className="tag">Help centre</p>
@@ -100,9 +105,14 @@ export default function Help() {
           required before a public launch.
         </p>
       </section>
-      <Link className="button primary" href="/app/discover">
-        Back to TRUF
-      </Link>
+      <div className="row">
+        <Link className="button primary" href="/">
+          Back to TRUF
+        </Link>
+        <Link className="button" href="/login">
+          Sign in
+        </Link>
+      </div>
     </main>
   );
 }

@@ -3,6 +3,8 @@ import { Account } from "@/components/account";
 import { localMode } from "@/server/local-mode";
 import { accountReadiness } from "@/server/readiness";
 import { isPortal } from "@/lib/login-portals";
+import type { Metadata } from "next";
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 export default async function Page({
   params,
   searchParams,

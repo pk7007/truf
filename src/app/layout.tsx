@@ -9,9 +9,29 @@ const inter = localFont({
   weight: "100 900",
 });
 export const metadata: Metadata = {
-  title: "TRUF · Find your game",
+  metadataBase: new URL(
+    process.env.BETTER_AUTH_URL || "https://truf-red.vercel.app",
+  ),
+  title: {
+    default: "TRUF · Find your game",
+    template: "%s · TRUF",
+  },
   description:
     "Your sports community. Find matches, book together, and keep playing.",
+  openGraph: {
+    type: "website",
+    siteName: "TRUF",
+    title: "TRUF · Find your game",
+    description:
+      "Find local sports matches, book together, and build a playing habit.",
+  },
+  twitter: {
+    card: "summary",
+    title: "TRUF · Find your game",
+    description:
+      "Find local sports matches, book together, and build a playing habit.",
+  },
+  robots: { index: true, follow: true },
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -30,6 +50,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </span>
           <nav aria-label="Footer">
             <Link href="/help">Help & booking policies</Link>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
             <Link href="/credits">Credits & licenses</Link>
           </nav>
         </footer>

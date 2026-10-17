@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { ArrowRight, Users, CalendarCheck, Trophy } from "lucide-react";
+import type { Metadata } from "next";
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 export default function Home() {
   return (
     <main className="hero">

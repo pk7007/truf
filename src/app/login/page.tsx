@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { Users, Building2, ShieldCheck, ArrowRight } from "lucide-react";
 import { portals } from "@/lib/login-portals";
+import type { Metadata } from "next";
+export const metadata: Metadata = {
+  title: "Sign in",
+  robots: { index: false, follow: false },
+};
 export default function Login() {
   const icons = { player: Users, owner: Building2, admin: ShieldCheck };
   return (

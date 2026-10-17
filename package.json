@@ -18,7 +18,8 @@
     "worker": "tsx scripts/worker.ts",
     "admin:promote": "tsx scripts/promote-admin.ts",
     "db:local": "node scripts/local-db.mjs",
-    "test:integration": "node scripts/test-db.mjs"
+    "test:integration": "node scripts/test-db.mjs",
+    "crawl:local": "node scripts/crawl-local.mjs"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

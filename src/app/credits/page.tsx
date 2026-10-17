@@ -1,5 +1,10 @@
 import Link from "next/link";
-export const metadata = { title: "Credits & licenses · TRUF" };
+export const metadata = {
+  title: "Credits & licenses",
+  description:
+    "TRUF project team, typography, and open-source acknowledgements.",
+  alternates: { canonical: "/credits" },
+};
 export default function Credits() {
   return (
     <main className="hero prose-page">

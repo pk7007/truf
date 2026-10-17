@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { money } from "@/lib/rules";
 import { walletTypeLabel, type WalletDirection } from "@/lib/wallet";
+import { safeInternalHref } from "@/lib/navigation";
 import { MFA } from "./account";
 import { SmartSearch } from "./search";
 type Slot = {
@@ -1132,7 +1133,7 @@ export function Records({
                   <h2>{n.title}</h2>
                   <p>{n.body}</p>
                   <div className="row">
-                    <Link className="button" href={n.href}>
+                    <Link className="button" href={safeInternalHref(n.href)}>
                       View
                     </Link>
                     {!n.readAt && (

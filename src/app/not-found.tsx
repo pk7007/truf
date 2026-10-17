@@ -3,8 +3,8 @@ export default function NotFound() {
   return (
     <main className="hero">
       <h1>Page not found.</h1>
-      <Link href="/app/discover" className="button primary">
-        Back to games
+      <Link href="/" className="button primary">
+        Go to the homepage
       </Link>
     </main>
   );

@@ -4,6 +4,8 @@ import { currentUser } from "@/server/access";
 import { db } from "@/server/db";
 import { isPortal, portalDestination } from "@/lib/login-portals";
 import { SignOut } from "@/components/account";
+import type { Metadata } from "next";
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 export default async function Page({
   searchParams,
 }: {

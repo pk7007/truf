@@ -6,6 +6,11 @@ import { db } from "@/server/db";
 import { SignOut } from "@/components/account";
 import { localMode } from "@/server/local-mode";
 import { isDemoAdministrator } from "@/lib/demo-access";
+import type { Metadata } from "next";
+export const metadata: Metadata = {
+  title: { default: "TRUF app", template: "%s · TRUF" },
+  robots: { index: false, follow: false },
+};
 export default async function Layout({
   children,
 }: {
