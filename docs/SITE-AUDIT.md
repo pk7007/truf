@@ -101,6 +101,7 @@ Public pages have unique titles, descriptions, canonical URLs, and inherited Ope
 | Unit suite | 30 passed; 16 integration-only tests skipped by design |
 | Isolated PostgreSQL integration suite | 46 passed |
 | Next.js production build | Pass; 20 static/dynamic route entries |
+| Production dependency audit | Pass; zero production vulnerabilities reported |
 | Local route/link crawl | Pass; 31 role checks and 19 rendered internal links |
 | Browser role denial | Pass |
 | Browser public policy page | Pass |
@@ -113,6 +114,7 @@ Public pages have unique titles, descriptions, canonical URLs, and inherited Ope
 - Deadline, notification, refund, and reconciliation jobs require a continuously running production worker; Vercel alone does not provide that worker.
 - Production database backups, a restore exercise, alerting, and rate-limit monitoring must be verified before accepting real users or money.
 - The privacy notice and terms are pilot copy and should receive legal review before commercial launch.
+- npm reports an unpatched high-severity advisory in the development-only ESLint file-matching chain. It is not included in the deployed runtime; CI still runs lint, type checks, tests, and the production build, while its vulnerability gate covers production dependencies.
 
 ## 12. Recommended launch sequence
 
