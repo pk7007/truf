@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { money } from "@/lib/rules";
+import { walletTypeLabel, type WalletDirection } from "@/lib/wallet";
 import { MFA } from "./account";
 import { SmartSearch } from "./search";
 type Slot = {
@@ -88,6 +89,9 @@ type WalletData = {
     amountPaise: number;
     balanceAfterPaise: number;
     description: string;
+    direction: WalletDirection;
+    referenceType: string;
+    referenceId: string;
     createdAt: string;
     userName?: string;
     userEmail?: string;
@@ -238,18 +242,24 @@ export function ActionButton({
   body,
   children,
   done,
+  disabled = false,
+  confirmText,
 }: {
   body: Record<string, unknown>;
   children: React.ReactNode;
   done: () => void;
+  disabled?: boolean;
+  confirmText?: string;
 }) {
   const [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
   return (
     <span>
       <button
-        disabled={busy}
+        type="button"
+        disabled={busy || disabled}
         onClick={async () => {
+          if (confirmText && !window.confirm(confirmText)) return;
           setBusy(true);
           try {
             await action(body);
@@ -284,13 +294,91 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
   const [payoutMethod, setPayoutMethod] = useState("BANK");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [entryType, setEntryType] = useState("ALL");
+  const [entryQuery, setEntryQuery] = useState("");
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const topUpRupees = Number(amount);
+  const topUpValid =
+    Number.isFinite(topUpRupees) && topUpRupees >= 100 && topUpRupees <= 5000;
+  const withdrawalRupees = Number(withdrawalAmount);
+  const withdrawalPaise = Math.round(withdrawalRupees * 100);
+  const withdrawalValid =
+    Number.isFinite(withdrawalRupees) &&
+    withdrawalRupees >= 500 &&
+    withdrawalRupees <= 50000 &&
+    withdrawalPaise <= (data.withdrawablePaise || 0);
+  const activeWithdrawalStatuses = new Set([
+    "REQUESTED",
+    "APPROVED",
+    "PROCESSING",
+  ]);
+  const reservedPaise = (data.withdrawals || [])
+    .filter((item) => activeWithdrawalStatuses.has(item.status))
+    .reduce((sum, item) => sum + item.amountPaise, 0);
+  const entryTypes = [
+    ...new Set(data.entries.map((entry) => entry.type)),
+  ].sort();
+  const filteredEntries = data.entries.filter((entry) => {
+    const matchesType = entryType === "ALL" || entry.type === entryType;
+    const search = entryQuery.trim().toLocaleLowerCase("en-IN");
+    return (
+      matchesType &&
+      (!search ||
+        entry.description.toLocaleLowerCase("en-IN").includes(search) ||
+        walletTypeLabel(entry.type)
+          .toLocaleLowerCase("en-IN")
+          .includes(search) ||
+        entry.userName?.toLocaleLowerCase("en-IN").includes(search) ||
+        entry.userEmail?.toLocaleLowerCase("en-IN").includes(search))
+    );
+  });
+  function exportLedger() {
+    const quote = (value: unknown) =>
+      `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const rows = [
+      [
+        "Date (IST)",
+        "Account",
+        "Description",
+        "Type",
+        "Direction",
+        "Amount (INR)",
+        "Balance (INR)",
+      ],
+      ...filteredEntries.map((entry) => [
+        date(entry.createdAt),
+        entry.userEmail || "My wallet",
+        entry.description,
+        walletTypeLabel(entry.type),
+        entry.direction,
+        (entry.amountPaise / 100).toFixed(2),
+        (entry.balanceAfterPaise / 100).toFixed(2),
+      ]),
+    ];
+    const blob = new Blob(
+      ["\uFEFF" + rows.map((row) => row.map(quote).join(",")).join("\r\n")],
+      {
+        type: "text/csv;charset=utf-8",
+      },
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `truf-wallet-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
   async function topUp() {
+    if (!topUpValid) {
+      setMessage("Choose an amount from ₹100 to ₹5,000.");
+      return;
+    }
     setBusy(true);
     setMessage("");
     try {
       const order = await action({
         action: "wallet-top-up",
-        amountPaise: Math.round(Number(amount) * 100),
+        amountPaise: Math.round(topUpRupees * 100),
       });
       if (!window.Razorpay)
         await new Promise<void>((resolve, reject) => {
@@ -337,12 +425,18 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
     }
   }
   async function withdraw() {
+    if (!withdrawalValid) {
+      setMessage(
+        "Choose ₹500–₹50,000 without exceeding available owner earnings.",
+      );
+      return;
+    }
     setBusy(true);
     setMessage("");
     try {
       await action({
         action: "wallet-withdraw",
-        amountPaise: Math.round(Number(withdrawalAmount) * 100),
+        amountPaise: withdrawalPaise,
         payoutMethod,
       });
       setMessage("Withdrawal request submitted. The amount is now reserved.");
@@ -365,7 +459,7 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
           <strong>{money(data.balancePaise)}</strong>
           <p>
             {data.mode === "ADMIN"
-              ? `${data.walletCount || 0} wallets · ${money(data.creditsPaise || 0)} credits · ${money(data.debitsPaise || 0)} booking debits`
+              ? `${data.walletCount || 0} wallets · ${money(data.creditsPaise || 0)} recent credits · ${money(data.debitsPaise || 0)} recent debits`
               : "Use this balance for any eligible TRUF match."}
           </p>
         </div>
@@ -384,7 +478,8 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
             </label>
             <button
               className="primary"
-              disabled={busy || data.testMode === "UNAVAILABLE"}
+              type="button"
+              disabled={busy || !topUpValid || data.testMode === "UNAVAILABLE"}
               onClick={topUp}
             >
               {busy ? "Opening checkout…" : "Add with Razorpay"}
@@ -395,10 +490,36 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
                 configured.
               </small>
             )}
-            {message && <p role="status">{message}</p>}
           </div>
         )}
       </section>
+      {message && (
+        <p className="wallet-message" role="status" aria-live="polite">
+          {message}
+        </p>
+      )}
+      {data.mode !== "ADMIN" && (
+        <section
+          className="wallet-summary-grid"
+          aria-label="Wallet balance breakdown"
+        >
+          <div className="card">
+            <span>Spendable balance</span>
+            <strong>{money(data.balancePaise)}</strong>
+            <small>Available for eligible match payments</small>
+          </div>
+          <div className="card">
+            <span>Owner earnings available</span>
+            <strong>{money(data.withdrawablePaise || 0)}</strong>
+            <small>Completed-game settlements eligible to request</small>
+          </div>
+          <div className="card">
+            <span>Payouts in progress</span>
+            <strong>{money(reservedPaise)}</strong>
+            <small>Reserved across requested or approved withdrawals</small>
+          </div>
+        </section>
+      )}
       {data.mode !== "ADMIN" && data.canWithdraw && (
         <section className="card withdrawal-panel">
           <div>
@@ -428,14 +549,15 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
                 value={payoutMethod}
                 onChange={(event) => setPayoutMethod(event.target.value)}
               >
-                <option value="BANK">Verified bank account</option>
-                <option value="UPI">Verified UPI account</option>
+                <option value="BANK">Bank account (after verification)</option>
+                <option value="UPI">UPI account (after verification)</option>
               </select>
             </label>
             <button
               className="primary"
+              type="button"
               onClick={withdraw}
-              disabled={busy || (data.withdrawablePaise || 0) < 50000}
+              disabled={busy || !withdrawalValid}
             >
               {busy ? "Submitting…" : "Request withdrawal"}
             </button>
@@ -461,14 +583,19 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
           </div>
           <div className="table-wrap">
             <table>
+              <caption className="sr-only">
+                {data.mode === "ADMIN"
+                  ? "Owner withdrawal review queue"
+                  : "Your withdrawal requests"}
+              </caption>
               <thead>
                 <tr>
-                  <th>Requested</th>
-                  {data.mode === "ADMIN" && <th>Owner</th>}
-                  <th>Method</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Action</th>
+                  <th scope="col">Requested</th>
+                  {data.mode === "ADMIN" && <th scope="col">Owner</th>}
+                  <th scope="col">Method</th>
+                  <th scope="col">Amount</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -496,13 +623,29 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
                       withdrawal.status === "REQUESTED" &&
                       !data.readOnly ? (
                         <div className="row">
+                          <label className="review-note">
+                            Review note
+                            <input
+                              value={reviewNotes[withdrawal.id] || ""}
+                              maxLength={200}
+                              placeholder="Required when rejecting"
+                              onChange={(event) =>
+                                setReviewNotes((notes) => ({
+                                  ...notes,
+                                  [withdrawal.id]: event.target.value,
+                                }))
+                              }
+                            />
+                          </label>
                           <ActionButton
                             body={{
                               action: "wallet-withdraw-review",
                               id: withdrawal.id,
                               decision: "APPROVED",
+                              note: reviewNotes[withdrawal.id] || undefined,
                             }}
                             done={done}
+                            confirmText="Approve this withdrawal for payout processing? No external transfer will occur until a payout provider is connected."
                           >
                             Approve
                           </ActionButton>
@@ -511,8 +654,14 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
                               action: "wallet-withdraw-review",
                               id: withdrawal.id,
                               decision: "REJECTED",
+                              note: reviewNotes[withdrawal.id] || undefined,
                             }}
                             done={done}
+                            disabled={
+                              (reviewNotes[withdrawal.id] || "").trim().length <
+                              3
+                            }
+                            confirmText="Reject this withdrawal and return the reserved earnings to the owner wallet?"
                           >
                             Reject
                           </ActionButton>
@@ -525,6 +674,7 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
                             id: withdrawal.id,
                           }}
                           done={done}
+                          confirmText="Cancel this withdrawal request and return the reserved earnings to your wallet?"
                         >
                           Cancel request
                         </ActionButton>
@@ -545,11 +695,14 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
           <h2>Recent top-ups</h2>
           <div className="table-wrap">
             <table>
+              <caption className="sr-only">
+                Your recent wallet top-up attempts
+              </caption>
               <thead>
                 <tr>
-                  <th>Created</th>
-                  <th>Amount</th>
-                  <th>Status</th>
+                  <th scope="col">Created</th>
+                  <th scope="col">Amount</th>
+                  <th scope="col">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -577,22 +730,63 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
             <p className="eyebrow">Ledger</p>
             <h2>Wallet activity</h2>
           </div>
-          <span className="badge">INR · protected ledger</span>
+          <div className="row">
+            <span className="badge">INR · protected ledger</span>
+            <button
+              type="button"
+              onClick={exportLedger}
+              disabled={!filteredEntries.length}
+            >
+              Export CSV
+            </button>
+          </div>
+        </div>
+        <div className="wallet-ledger-tools">
+          <label>
+            Search activity
+            <input
+              type="search"
+              value={entryQuery}
+              placeholder="Description or account"
+              onChange={(event) => setEntryQuery(event.target.value)}
+            />
+          </label>
+          <label>
+            Transaction type
+            <select
+              value={entryType}
+              onChange={(event) => setEntryType(event.target.value)}
+            >
+              <option value="ALL">All types</option>
+              {entryTypes.map((type) => (
+                <option key={type} value={type}>
+                  {walletTypeLabel(type)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="muted" aria-live="polite">
+            Showing {filteredEntries.length} of {data.entries.length} recent
+            entries
+          </span>
         </div>
         <div className="table-wrap">
           <table>
+            <caption className="sr-only">
+              Wallet transaction ledger in Indian rupees
+            </caption>
             <thead>
               <tr>
-                <th>Date</th>
-                {data.mode === "ADMIN" && <th>Account</th>}
-                <th>Details</th>
-                <th>Type</th>
-                <th>Amount</th>
-                <th>Balance</th>
+                <th scope="col">Date</th>
+                {data.mode === "ADMIN" && <th scope="col">Account</th>}
+                <th scope="col">Details</th>
+                <th scope="col">Type</th>
+                <th scope="col">Amount</th>
+                <th scope="col">Balance</th>
               </tr>
             </thead>
             <tbody>
-              {data.entries.map((entry) => (
+              {filteredEntries.map((entry) => (
                 <tr key={entry.id}>
                   <td>{date(entry.createdAt)}</td>
                   {data.mode === "ADMIN" && (
@@ -604,18 +798,19 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
                   )}
                   <td>{entry.description}</td>
                   <td>
-                    <span className="badge">
-                      {entry.type.replaceAll("_", " ")}
-                    </span>
+                    <span className="badge">{walletTypeLabel(entry.type)}</span>
                   </td>
                   <td
                     className={
-                      entry.type === "BOOKING"
+                      entry.direction === "DEBIT"
                         ? "wallet-debit"
                         : "wallet-credit"
                     }
                   >
-                    {entry.type === "BOOKING" ? "−" : "+"}
+                    <span className="sr-only">
+                      {entry.direction === "DEBIT" ? "Debit" : "Credit"}{" "}
+                    </span>
+                    {entry.direction === "DEBIT" ? "−" : "+"}
                     {money(entry.amountPaise)}
                   </td>
                   <td>{money(entry.balanceAfterPaise)}</td>
@@ -627,11 +822,15 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
         {!data.entries.length && (
           <p className="empty">Your wallet has no activity yet.</p>
         )}
+        {!!data.entries.length && !filteredEntries.length && (
+          <p className="empty">No wallet activity matches these filters.</p>
+        )}
       </section>
       <p className="muted wallet-note">
-        TRUF Wallet is a closed-loop booking balance. It is not a bank account
-        and cannot be transferred between users or withdrawn as cash during the
-        pilot.
+        TRUF Wallet is a closed-loop booking balance, not a bank account. Player
+        top-ups cannot be transferred or withdrawn. Approved turf owners may
+        request only completed-game settlement earnings through the reviewed
+        pilot payout workflow.
         {data.generatedAt && <> · Last synced {date(data.generatedAt)}</>}
       </p>
     </>

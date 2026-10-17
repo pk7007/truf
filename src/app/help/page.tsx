@@ -54,8 +54,9 @@ export default function Help() {
         <p>
           Players add booking balance through the configured payment provider.
           Match shares debit the wallet and eligible cancellations credit it
-          immediately. Player balances cannot be transferred or withdrawn as
-          cash during the pilot.
+          immediately. Player top-ups cannot be transferred or withdrawn as cash
+          during the pilot. They remain available for eligible TRUF match
+          payments.
         </p>
         <p>
           Approved turf owners can request withdrawals only from completed-game
@@ -63,6 +64,12 @@ export default function Help() {
           approves, rejects, or the owner cancels it. Approval records the
           payout decision; an actual bank or UPI transfer requires completed KYC
           and a connected payout provider.
+        </p>
+        <p>
+          The wallet activity table identifies every credit and debit, including
+          money added, match payments, refunds, venue earnings, and amounts
+          reserved for withdrawal. Owners can cancel a request while it is still
+          awaiting review.
         </p>
       </section>
       <section className="card">

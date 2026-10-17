@@ -5,6 +5,7 @@ import { DEMO_ORGANIZATION, isDemoAdministrator } from "@/lib/demo-access";
 import { canReadMatch } from "@/server/booking";
 import { db } from "@/server/db";
 import { walletWithdrawalSummary } from "@/server/wallet";
+import { walletDirection } from "@/lib/wallet";
 export async function GET(request: Request) {
   try {
     const user = await currentUser(),
@@ -65,6 +66,7 @@ export async function GET(request: Request) {
         const entries = wallets.flatMap((wallet) =>
           wallet.entries.map((entry) => ({
             ...entry,
+            direction: walletDirection(entry.type),
             userName: wallet.user.name,
             userEmail: wallet.user.email,
           })),
@@ -85,10 +87,10 @@ export async function GET(request: Request) {
           ),
           walletCount: wallets.length,
           creditsPaise: entries
-            .filter((entry) => entry.type !== "BOOKING")
+            .filter((entry) => walletDirection(entry.type) === "CREDIT")
             .reduce((sum, entry) => sum + entry.amountPaise, 0),
           debitsPaise: entries
-            .filter((entry) => entry.type === "BOOKING")
+            .filter((entry) => walletDirection(entry.type) === "DEBIT")
             .reduce((sum, entry) => sum + entry.amountPaise, 0),
           entries: entries
             .sort((a, b) => +b.createdAt - +a.createdAt)
@@ -114,7 +116,10 @@ export async function GET(request: Request) {
         id: wallet.id,
         currency: wallet.currency,
         balancePaise: wallet.balancePaise,
-        entries: wallet.entries,
+        entries: wallet.entries.map((entry) => ({
+          ...entry,
+          direction: walletDirection(entry.type),
+        })),
         ...withdrawal,
         withdrawals: await db.walletWithdrawal.findMany({
           where: { userId: user.id },

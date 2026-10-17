@@ -75,3 +75,5 @@ Integration tests create a uniquely named temporary schema in a local/CI Postgre
 | prototype      | Preserved standalone reference                                                         |
 
 See [operations](docs/OPERATIONS.md) for monitoring, refund investigations, backups and administrator setup. See [pilot readiness](docs/PILOT-READINESS.md) for exactly when each external service is needed. Applying render.yaml can create paid infrastructure; no resources are purchased by this repository change.
+
+The wallet's user flows, business rules, competitor comparison, acceptance criteria, and remaining live-money gates are documented in the [TRUF Wallet audit](docs/WALLET-AUDIT.md).

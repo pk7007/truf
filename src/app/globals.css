@@ -203,6 +203,50 @@ small {
   max-width: 760px;
   margin: 18px 0;
 }
+.wallet-message {
+  margin: -8px 0 22px;
+  padding: 12px 14px;
+  border: 1px solid #544879;
+  border-radius: 12px;
+  background: #221d32;
+}
+.wallet-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0 0 22px;
+}
+.wallet-summary-grid .card {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+.wallet-summary-grid span,
+.wallet-summary-grid small {
+  color: var(--muted);
+}
+.wallet-summary-grid strong {
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  font-variant-numeric: tabular-nums;
+}
+.wallet-ledger-tools {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 0.55fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin: 18px 0;
+}
+.wallet-ledger-tools > span {
+  padding-bottom: 12px;
+  white-space: nowrap;
+}
+.review-note {
+  min-width: 190px;
+  font-size: 0.75rem;
+}
+.review-note input {
+  min-width: 190px;
+}
 .wallet-inline {
   display: flex;
   flex-wrap: wrap;
@@ -270,8 +314,14 @@ small {
     grid-template-columns: 1fr;
   }
   .withdrawal-panel,
-  .withdrawal-form {
+  .withdrawal-form,
+  .wallet-summary-grid,
+  .wallet-ledger-tools {
     grid-template-columns: 1fr;
+  }
+  .wallet-ledger-tools > span {
+    padding-bottom: 0;
+    white-space: normal;
   }
 }
 .content {

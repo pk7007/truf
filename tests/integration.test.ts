@@ -20,6 +20,7 @@ import {
   cancelWalletWithdrawal,
   postWalletEntry,
   requestWalletWithdrawal,
+  reviewWalletWithdrawal,
 } from "../src/server/wallet";
 import { analytics } from "../src/server/analytics";
 import { requireOrganization } from "../src/server/access";
@@ -282,6 +283,34 @@ suite("database booking and tenant isolation", () => {
         })
       ).status,
     ).toBe("CANCELLED");
+    expect(
+      await db.auditLog.count({
+        where: {
+          targetId: request.id,
+          action: {
+            in: ["REQUEST_WALLET_WITHDRAWAL", "CANCEL_WALLET_WITHDRAWAL"],
+          },
+        },
+      }),
+    ).toBe(2);
+    const rejected = await requestWalletWithdrawal(owner, 50000, "UPI");
+    await expect(
+      reviewWalletWithdrawal(other, rejected.id, "REJECTED"),
+    ).rejects.toThrow("short reason");
+    await reviewWalletWithdrawal(
+      other,
+      rejected.id,
+      "REJECTED",
+      "Payout account could not be verified.",
+    );
+    expect(
+      await db.auditLog.count({
+        where: {
+          targetId: rejected.id,
+          action: "REVIEW_WALLET_WITHDRAWAL_REJECTED",
+        },
+      }),
+    ).toBe(1);
     await expect(requestWalletWithdrawal(player, 50000, "UPI")).rejects.toThrow(
       "approved turf-owner",
     );

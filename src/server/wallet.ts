@@ -256,6 +256,14 @@ export async function requestWalletWithdrawal(
           href: "/app/wallet",
         },
       });
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          action: "REQUEST_WALLET_WITHDRAWAL",
+          targetId: withdrawal.id,
+          details: { amountPaise, payoutMethod },
+        },
+      });
       return withdrawal;
     },
     { isolationLevel: "Serializable", timeout: 15000 },
@@ -285,6 +293,14 @@ export async function cancelWalletWithdrawal(user: User, id: string) {
         description: "Cancelled withdrawal · funds released",
         idempotencyKey: "withdrawal-release:" + withdrawal.id,
       });
+      await tx.auditLog.create({
+        data: {
+          actorId: user.id,
+          action: "CANCEL_WALLET_WITHDRAWAL",
+          targetId: withdrawal.id,
+          details: { amountPaise: withdrawal.amountPaise },
+        },
+      });
       return { ok: true };
     },
     { isolationLevel: "Serializable", timeout: 15000 },
@@ -305,11 +321,17 @@ export async function reviewWalletWithdrawal(
       if (!withdrawal) throw new AppError(404, "Withdrawal request not found.");
       if (withdrawal.status !== "REQUESTED")
         throw new AppError(409, "This request was already reviewed.");
+      const reviewNote = note?.trim().slice(0, 200) || null;
+      if (decision === "REJECTED" && (!reviewNote || reviewNote.length < 3))
+        throw new AppError(
+          400,
+          "Add a short reason before rejecting the request.",
+        );
       await tx.walletWithdrawal.update({
         where: { id },
         data: {
           status: decision,
-          note: note?.slice(0, 200) || null,
+          note: reviewNote,
           reviewedBy: reviewer.id,
           reviewedAt: new Date(),
         },
@@ -334,6 +356,18 @@ export async function reviewWalletWithdrawal(
               ? "Approved for payout processing. No cash transfer occurs until a payout provider is connected."
               : "The request was rejected and the reserved earnings returned to your wallet.",
           href: "/app/wallet",
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: reviewer.id,
+          action: `REVIEW_WALLET_WITHDRAWAL_${decision}`,
+          targetId: withdrawal.id,
+          details: {
+            amountPaise: withdrawal.amountPaise,
+            payoutMethod: withdrawal.payoutMethod,
+            note: reviewNote,
+          },
         },
       });
       return { ok: true };
