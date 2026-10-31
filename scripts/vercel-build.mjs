@@ -18,4 +18,6 @@ if (process.env.VERCEL_ENV === "production") {
   if (!process.env.DATABASE_URL) throw Error("DATABASE_URL is required");
   run("node_modules/prisma/build/index.js", ["migrate", "deploy"]);
 }
-run("node_modules/next/dist/bin/next", ["build"]);
+// Webpack is the documented Next.js fallback and avoids intermittent
+// Turbopack child-process failures observed on Windows development machines.
+run("node_modules/next/dist/bin/next", ["build", "--webpack"]);
