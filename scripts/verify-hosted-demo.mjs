@@ -19,6 +19,29 @@ for (const { role, email, password } of credentials) {
   assert.ok(cookie, "Expected an authenticated session");
   try {
     const headers = { Cookie: cookie, Origin: base };
+    if (process.env.VERIFY_DISCOVERY === "1" && role !== "admin") {
+      const response = await fetch(
+        `${base}/api/data?view=${role === "player" ? "discover" : "venues"}`,
+        { headers },
+      );
+      assert.equal(response.status, 200);
+      const records = await response.json();
+      const count =
+        role === "player"
+          ? records.matches.filter((match) =>
+              match.id.startsWith("demo-discovery-nov-"),
+            ).length
+          : records
+              .flatMap((venue) => venue.areas.flatMap((area) => area.slots))
+              .filter((slot) => slot.id.startsWith("demo-discovery-nov-"))
+              .length;
+      assert.equal(
+        count,
+        7,
+        `${role} must see seven upcoming demo games/slots`,
+      );
+      console.log(`PASS: ${role} seven upcoming demo games/slots.`);
+    }
     const landing = await fetch(`${base}/auth/continue?portal=${role}`, {
       headers,
       redirect: "manual",
