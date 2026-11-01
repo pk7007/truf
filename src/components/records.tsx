@@ -390,7 +390,7 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
             reject(Error("Secure checkout could not load."));
           document.head.append(script);
         });
-      new window.Razorpay({
+      const checkout = new window.Razorpay({
         key: order.key,
         order_id: order.orderId,
         amount: order.amount,
@@ -419,7 +419,12 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
           }
         },
         modal: { ondismiss: () => setBusy(false) },
-      }).open();
+      });
+      checkout.open();
+      // The checkout owns the interaction after it opens. Reset immediately so
+      // returning through Razorpay's internal back control cannot leave the
+      // wallet action stuck in its opening state.
+      setBusy(false);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Top-up failed.");
       setBusy(false);
