@@ -7,6 +7,7 @@ import { walletTypeLabel, type WalletDirection } from "@/lib/wallet";
 import { safeInternalHref } from "@/lib/navigation";
 import { MFA } from "./account";
 import { SmartSearch } from "./search";
+import { BookMatch } from "./book-match";
 type Slot = {
   id: string;
   startsAt: string;
@@ -1016,6 +1017,9 @@ export function Records({
                         View match →
                       </Link>
                     </div>
+                    {view === "discover" && (
+                      <BookMatch id={m.id} status={m.status} done={done} />
+                    )}
                     {view === "owner-bookings" && m.status === "REQUESTED" && (
                       <ActionForm
                         title="Approve hold"
