@@ -54,6 +54,12 @@ for (const { role, email, password } of credentials) {
     );
     assert.equal(payments.status, 200);
     const paymentRows = await payments.json();
+    const detail = await fetch(
+      `${base}/api/data?id=${encodeURIComponent(paymentRows[0].order.participation.match.id)}`,
+      { headers },
+    );
+    assert.equal(detail.status, 200, `${role} payment-to-match link failed`);
+    assert.equal((await detail.json()).workspace, role);
     assert.ok(paymentRows.length >= 15, `${role} payment history is empty`);
     assert.ok(
       paymentRows.every((row) => row.source === "Demo wallet · fictional"),
