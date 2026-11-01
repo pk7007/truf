@@ -22,17 +22,29 @@ export default async function Layout({
     where: { userId: user.id, organization: { status: "APPROVED" } },
   });
   const appRole = user.role === "ADMIN" ? "ADMIN" : owner ? "OWNER" : "PLAYER";
+  const homeHref =
+    appRole === "ADMIN"
+      ? "/app/admin"
+      : appRole === "OWNER"
+        ? "/app/owner"
+        : "/app/discover";
+  const workspaceLabel =
+    appRole === "ADMIN"
+      ? "Operate TRUF"
+      : appRole === "OWNER"
+        ? "Run your venues"
+        : "Find your game";
   return (
     <div className="shell">
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
       <aside className="sidebar">
-        <Link href="/app/discover" className="brand">
+        <Link href={homeHref} className="brand">
           TRUF<span className="accent">.</span>
         </Link>
         <p className="muted">
-          <small>Find your game</small>
+          <small>{workspaceLabel}</small>
         </p>
         <AppNavigation role={appRole} />
       </aside>

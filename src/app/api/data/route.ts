@@ -18,6 +18,7 @@ export async function GET(request: Request) {
         where: { userId: user.id, organization: { status: "APPROVED" } },
       })) > 0;
     if (
+      !id &&
       ["discover", "matches"].includes(view) &&
       (approvedOwner || user.role === "ADMIN")
     )
@@ -52,6 +53,8 @@ export async function GET(request: Request) {
         ...match,
         invitationHash: undefined,
         myId: user.id,
+        workspace:
+          user.role === "ADMIN" ? "admin" : approvedOwner ? "owner" : "player",
         walletBalancePaise:
           (await db.wallet.findUnique({ where: { userId: user.id } }))
             ?.balancePaise || 0,

@@ -7,6 +7,7 @@ import { money } from "@/lib/rules";
 type Detail = {
   id: string;
   myId: string;
+  workspace: "player" | "owner" | "admin";
   canManage: boolean;
   title: string;
   status: string;
@@ -78,15 +79,23 @@ export function MatchDetail({ id }: { id: string }) {
   }
   return (
     <main className="hero">
-      <Link className="brand" href="/app/discover">
+      <Link className="brand" href="/app">
         TRUF
       </Link>
       <div className="row" style={{ margin: "25px 0" }}>
-        <Link href="/app/discover">← Discover</Link>
-        <Link href="/app/matches">My matches</Link>
-        {data?.canManage && (
-          <Link href="/app/owner-bookings">Venue bookings</Link>
+        <Link href="/app">← My dashboard</Link>
+        {data?.workspace === "player" && (
+          <Link href="/app/matches">My matches</Link>
         )}
+        <Link
+          href={
+            data?.workspace === "player"
+              ? "/app/payments"
+              : `/app/payments?scope=${data?.workspace || "owner"}`
+          }
+        >
+          Payment history
+        </Link>
       </div>
       {error && (
         <p className="error" role="alert">
