@@ -12,6 +12,24 @@ export async function GET(request: Request) {
       q = new URL(request.url).searchParams,
       view = q.get("view") || "discover",
       id = q.get("id");
+    const approvedOwner =
+      user.role !== "ADMIN" &&
+      (await db.membership.count({
+        where: { userId: user.id, organization: { status: "APPROVED" } },
+      })) > 0;
+    if (
+      ["discover", "matches"].includes(view) &&
+      (approvedOwner || user.role === "ADMIN")
+    )
+      throw new AppError(
+        403,
+        "This page is available to player accounts only.",
+      );
+    if (["venues", "owner-bookings"].includes(view) && user.role === "ADMIN")
+      throw new AppError(
+        403,
+        "Use the administrator workspace for venue oversight.",
+      );
     if (id) {
       await canReadMatch(user, id, q.get("token") || undefined);
       const match = await db.match.findUniqueOrThrow({
@@ -149,6 +167,7 @@ export async function GET(request: Request) {
       return Response.json({
         name: user.name,
         email: user.email,
+        role: user.role,
         sports: user.sports,
         locality: user.locality,
         accountType: user.accountType,
@@ -227,67 +246,119 @@ export async function GET(request: Request) {
       );
     if (view === "payments") {
       const scope = q.get("scope");
+      if (user.role === "ADMIN" && scope !== "admin")
+        throw new AppError(
+          403,
+          "Administrator payment history requires administrator scope.",
+        );
+      if (approvedOwner && scope !== "owner")
+        throw new AppError(403, "Owner payment history requires owner scope.");
       const range = readRange(q);
       const ids =
         scope === "owner" || scope === "admin" ? await reportScope(user) : null;
       if (scope === "admin" && !isDemoAdministrator(user)) await admin(user);
-      return Response.json(
-        await db.payment.findMany({
-          where: {
-            ...(range
-              ? {
-                  OR: [
-                    { capturedAt: range },
-                    { refunds: { some: { completedAt: range } } },
-                  ],
-                }
-              : {}),
-            AND: [
-              {
-                order: {
-                  participation: {
-                    match: {
-                      slot: {
-                        area: {
-                          ...(q.get("sport") ? { sport: q.get("sport")! } : {}),
-                          ...(q.get("venue")
-                            ? { venueId: q.get("venue")! }
-                            : {}),
-                        },
+      const payments = await db.payment.findMany({
+        where: {
+          ...(range
+            ? {
+                OR: [
+                  { capturedAt: range },
+                  { refunds: { some: { completedAt: range } } },
+                ],
+              }
+            : {}),
+          AND: [
+            {
+              order: {
+                participation: {
+                  match: {
+                    slot: {
+                      area: {
+                        ...(q.get("sport") ? { sport: q.get("sport")! } : {}),
+                        ...(q.get("venue") ? { venueId: q.get("venue")! } : {}),
                       },
                     },
                   },
                 },
               },
-            ],
-            order: {
-              participation: ids
-                ? {
-                    match: {
-                      slot: {
-                        area: { venue: { organizationId: { in: ids } } },
-                      },
-                    },
-                  }
-                : scope === "admin" || scope === "owner"
-                  ? {}
-                  : { userId: user.id },
             },
+          ],
+          order: {
+            participation: ids
+              ? {
+                  match: {
+                    slot: {
+                      area: { venue: { organizationId: { in: ids } } },
+                    },
+                  },
+                }
+              : scope === "admin" || scope === "owner"
+                ? {}
+                : { userId: user.id },
           },
-          include: {
-            refunds: true,
-            transfer: true,
-            order: {
-              select: {
-                participation: {
-                  select: { match: { select: { title: true, id: true } } },
-                },
+        },
+        include: {
+          refunds: true,
+          transfer: true,
+          order: {
+            select: {
+              participation: {
+                select: { match: { select: { title: true, id: true } } },
               },
             },
           },
-          orderBy: { capturedAt: "desc" },
-          take: 100,
-        }),
+        },
+        orderBy: { capturedAt: "desc" },
+        take: 100,
+      });
+      if (payments.length || !user.id.startsWith("hosted-demo-20261015-"))
+        return Response.json(
+          payments.map((payment) => ({ ...payment, source: "Razorpay" })),
+        );
+
+      // Hosted presentation accounts use completed fictional matches instead
+      // of provider records. This keeps payment history useful without
+      // fabricating Razorpay collections in the financial tables.
+      const demoMatches = await db.match.findMany({
+        where: {
+          status: "COMPLETED",
+          ...(range ? { completedAt: range } : {}),
+          ...(ids
+            ? {
+                slot: {
+                  area: { venue: { organizationId: { in: ids } } },
+                },
+              }
+            : {
+                participations: { some: { userId: user.id, status: "PAID" } },
+              }),
+        },
+        select: {
+          id: true,
+          title: true,
+          sharePaise: true,
+          completedAt: true,
+          confirmedAt: true,
+          slot: { select: { pricePaise: true } },
+        },
+        orderBy: { completedAt: "desc" },
+        take: 30,
+      });
+      return Response.json(
+        demoMatches.map((match) => ({
+          id: `demo-history-${match.id}`,
+          providerPaymentId: `fictional-${match.id}`,
+          capturedAt:
+            match.confirmedAt || match.completedAt || new Date().toISOString(),
+          amountPaise: ids ? match.slot.pricePaise : match.sharePaise,
+          feePaise: 0,
+          refunds: [],
+          transfer: null,
+          source: "Demo wallet · fictional",
+          order: {
+            participation: { match: { id: match.id, title: match.title } },
+          },
+        })),
       );
     }
     const category = q.get("date"),

@@ -42,6 +42,7 @@ export type RecordsData = {
   twoFactorEnabled?: boolean;
   locality?: string;
   accountType?: string;
+  role?: string;
   sports?: string[];
   memberships?: {
     organization: { id: string; name: string; status: string };
@@ -63,6 +64,7 @@ type Payment = {
   providerPaymentId: string;
   refunds: { id: string; amountPaise: number; status: string }[];
   order: { participation: { match: { id: string; title: string } } };
+  source?: string;
 };
 type Notice = {
   id: string;
@@ -460,16 +462,20 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
           <p className="eyebrow">
             {data.mode === "ADMIN"
               ? "Wallets under management"
-              : "Available balance"}
+              : data.canWithdraw
+                ? "Available owner balance"
+                : "Available balance"}
           </p>
           <strong>{money(data.balancePaise)}</strong>
           <p>
             {data.mode === "ADMIN"
               ? `${data.walletCount || 0} wallets · ${money(data.creditsPaise || 0)} recent credits · ${money(data.debitsPaise || 0)} recent debits`
-              : "Use this balance for any eligible TRUF match."}
+              : data.canWithdraw
+                ? "Completed-game earnings and settlement activity."
+                : "Use this balance for any eligible TRUF match."}
           </p>
         </div>
-        {data.mode !== "ADMIN" && (
+        {data.mode !== "ADMIN" && !data.canWithdraw && (
           <div className="wallet-top-up">
             <label>
               Add money (₹)
@@ -504,15 +510,15 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
           {message}
         </p>
       )}
-      {data.mode !== "ADMIN" && (
+      {data.mode !== "ADMIN" && data.canWithdraw && (
         <section
           className="wallet-summary-grid"
           aria-label="Wallet balance breakdown"
         >
           <div className="card">
-            <span>Spendable balance</span>
+            <span>Wallet balance</span>
             <strong>{money(data.balancePaise)}</strong>
-            <small>Available for eligible match payments</small>
+            <small>Owner settlement balance</small>
           </div>
           <div className="card">
             <span>Owner earnings available</span>
@@ -695,7 +701,7 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
           </div>
         </section>
       )}
-      {data.mode !== "ADMIN" && !!data.topUps?.length && (
+      {data.mode !== "ADMIN" && !data.canWithdraw && !!data.topUps?.length && (
         <section className="card">
           <p className="eyebrow">Payment reconciliation</p>
           <h2>Recent top-ups</h2>
@@ -833,10 +839,11 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
         )}
       </section>
       <p className="muted wallet-note">
-        TRUF Wallet is a closed-loop booking balance, not a bank account. Player
-        top-ups cannot be transferred or withdrawn. Approved turf owners may
-        request only completed-game settlement earnings through the reviewed
-        pilot payout workflow.
+        {data.mode === "ADMIN"
+          ? "Administrative wallet records are for reconciliation and review."
+          : data.canWithdraw
+            ? "Owner earnings become withdrawable only after completed games and administrator review."
+            : "TRUF Wallet is a closed-loop booking balance, not a bank account. Player top-ups cannot be transferred or withdrawn."}
         {data.generatedAt && <> · Last synced {date(data.generatedAt)}</>}
       </p>
     </>
@@ -1097,6 +1104,7 @@ export function Records({
                     <th>Match</th>
                     <th>Captured</th>
                     <th>Amount</th>
+                    <th>Method</th>
                     <th>Refunds</th>
                   </tr>
                 </thead>
@@ -1112,6 +1120,7 @@ export function Records({
                       </td>
                       <td>{date(p.capturedAt)}</td>
                       <td>{money(p.amountPaise)}</td>
+                      <td>{p.source || "Razorpay"}</td>
                       <td>
                         {p.refunds.map((r) => (
                           <p key={r.id}>
@@ -1124,7 +1133,10 @@ export function Records({
                 </tbody>
               </table>
               {!(data as Payment[])?.length && (
-                <p className="empty">No captured payments.</p>
+                <p className="empty">
+                  No payment activity yet. New bookings and refunds will appear
+                  here automatically.
+                </p>
               )}
             </div>
           )}
@@ -1175,16 +1187,14 @@ export function Records({
                   ]}
                   done={done}
                 />
-                <ActionForm
-                  title={
-                    info.accountType === "OWNER"
-                      ? "Register your turf business"
-                      : "Apply as a turf owner"
-                  }
-                  kind="organization"
-                  fields={[{ name: "name", label: "Business name" }]}
-                  done={done}
-                />
+                {info.role !== "ADMIN" && info.accountType !== "OWNER" && (
+                  <ActionForm
+                    title="Apply as a turf owner"
+                    kind="organization"
+                    fields={[{ name: "name", label: "Business name" }]}
+                    done={done}
+                  />
+                )}
               </div>
               <p className="muted">{info.email}</p>
               {info.memberships?.map((m) => (
@@ -1193,32 +1203,37 @@ export function Records({
                 </p>
               ))}
               <MFA enabled={info.twoFactorEnabled} />
-              {info.memberships
-                ?.filter((m) => m.organization.status === "APPROVED")
-                .map((m) => (
-                  <div className="cards" key={m.organization.id}>
-                    <ActionForm
-                      title={"Add venue to " + m.organization.name}
-                      kind="venue"
-                      extra={{ organizationId: m.organization.id }}
-                      fields={[
-                        { name: "name", label: "Venue name" },
-                        { name: "locality", label: "Locality" },
-                        { name: "address", label: "Address" },
-                      ]}
-                      done={done}
-                    />
-                    <ActionForm
-                      title="Add verified staff member"
-                      kind="staff"
-                      extra={{ organizationId: m.organization.id }}
-                      fields={[
-                        { name: "email", label: "Staff email", type: "email" },
-                      ]}
-                      done={done}
-                    />
-                  </div>
-                ))}
+              {info.role !== "ADMIN" &&
+                info.memberships
+                  ?.filter((m) => m.organization.status === "APPROVED")
+                  .map((m) => (
+                    <div className="cards" key={m.organization.id}>
+                      <ActionForm
+                        title={"Add venue to " + m.organization.name}
+                        kind="venue"
+                        extra={{ organizationId: m.organization.id }}
+                        fields={[
+                          { name: "name", label: "Venue name" },
+                          { name: "locality", label: "Locality" },
+                          { name: "address", label: "Address" },
+                        ]}
+                        done={done}
+                      />
+                      <ActionForm
+                        title="Add verified staff member"
+                        kind="staff"
+                        extra={{ organizationId: m.organization.id }}
+                        fields={[
+                          {
+                            name: "email",
+                            label: "Staff email",
+                            type: "email",
+                          },
+                        ]}
+                        done={done}
+                      />
+                    </div>
+                  ))}
             </>
           )}
           {view === "venues" &&

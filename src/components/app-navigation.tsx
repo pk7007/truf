@@ -17,68 +17,63 @@ import {
 import { NavLink } from "./nav-link";
 
 export function AppNavigation({
-  owner,
-  admin,
+  role,
 }: {
-  owner: boolean;
-  admin: boolean;
+  role: "PLAYER" | "OWNER" | "ADMIN";
 }) {
   const [open, setOpen] = useState(false);
+  const roleLinks = {
+    PLAYER: [
+      { href: "/app/discover", label: "Discover games", icon: Compass },
+      { href: "/app/matches", label: "My matches", icon: CalendarDays },
+      { href: "/app/progress", label: "Progress & rewards", icon: TrendingUp },
+      { href: "/app/wallet", label: "TRUF Wallet", icon: Wallet },
+      { href: "/app/payments", label: "Payment history", icon: Wallet },
+    ],
+    OWNER: [
+      {
+        href: "/app/owner",
+        label: "Owner overview",
+        icon: ChartNoAxesCombined,
+      },
+      {
+        href: "/app/venues",
+        label: "Venues & availability",
+        icon: Building2,
+      },
+      { href: "/app/wallet", label: "Earnings wallet", icon: Wallet },
+      {
+        href: "/app/payments?scope=owner",
+        label: "Payment history",
+        icon: Wallet,
+      },
+    ],
+    ADMIN: [
+      {
+        href: "/app/admin",
+        label: "Admin overview",
+        icon: ChartNoAxesCombined,
+      },
+      {
+        href: "/app/moderation",
+        label: "Approvals & audit",
+        icon: ShieldCheck,
+      },
+      {
+        href: "/app/payments?scope=admin",
+        label: "Payment history",
+        icon: Wallet,
+      },
+      {
+        href: "/app/wallet?scope=admin",
+        label: "Wallet control",
+        icon: Wallet,
+      },
+    ],
+  } as const;
   const links = [
-    { href: "/app/discover", label: "Discover games", icon: Compass },
-    { href: "/app/matches", label: "My matches", icon: CalendarDays },
-    { href: "/app/progress", label: "Progress & rewards", icon: TrendingUp },
-    { href: "/app/wallet", label: "TRUF Wallet", icon: Wallet },
-    { href: "/app/payments", label: "Payment history", icon: Wallet },
+    ...roleLinks[role],
     { href: "/app/notifications", label: "Notifications", icon: Bell },
-    ...(owner
-      ? [
-          {
-            href: "/app/owner",
-            label: "Owner overview",
-            icon: ChartNoAxesCombined,
-          },
-          {
-            href: "/app/owner-bookings",
-            label: "Venue bookings",
-            icon: CalendarDays,
-          },
-          {
-            href: "/app/venues",
-            label: "Venues & availability",
-            icon: Building2,
-          },
-          {
-            href: "/app/payments?scope=owner",
-            label: "Venue payments",
-            icon: Wallet,
-          },
-        ]
-      : []),
-    ...(admin
-      ? [
-          {
-            href: "/app/admin",
-            label: "Admin overview",
-            icon: ChartNoAxesCombined,
-          },
-          {
-            href: "/app/moderation",
-            label: "Approvals & audit",
-            icon: ShieldCheck,
-          },
-          {
-            href: "/app/payments?scope=admin",
-            label: "All payments",
-            icon: Wallet,
-          },
-          {
-            href: "/app/wallet?scope=admin",
-            label: "Wallet control",
-            icon: Wallet,
-          },
-        ]
-      : []),
     { href: "/app/settings", label: "Account & security", icon: Settings },
     { href: "/help", label: "Help & policies", icon: CircleHelp },
   ];

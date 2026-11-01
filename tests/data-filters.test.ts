@@ -1,7 +1,15 @@
 import { beforeEach, expect, test, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ matches: vi.fn(), slots: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  matches: vi.fn(),
+  slots: vi.fn(),
+  memberships: vi.fn(),
+}));
 vi.mock("../src/server/db", () => ({
-  db: { match: { findMany: mocks.matches }, slot: { findMany: mocks.slots } },
+  db: {
+    match: { findMany: mocks.matches },
+    slot: { findMany: mocks.slots },
+    membership: { count: mocks.memberships },
+  },
 }));
 vi.mock("../src/server/access", () => ({
   currentUser: async () => ({ id: "player", role: "PLAYER" }),
@@ -22,6 +30,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.matches.mockResolvedValue([]);
   mocks.slots.mockResolvedValue([]);
+  mocks.memberships.mockResolvedValue(0);
 });
 test("attendance drill-down filters completed games by IST date, not their titles", async () => {
   const response = await GET(

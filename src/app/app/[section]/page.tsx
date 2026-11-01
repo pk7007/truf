@@ -38,6 +38,20 @@ export default async function Page({
 
   const user = await currentUser();
   const scope = first(query.scope);
+  const approvedOwner =
+    user.role !== "ADMIN" &&
+    (await db.membership.count({
+      where: { userId: user.id, organization: { status: "APPROVED" } },
+    })) > 0;
+  const playerOnly = ["discover", "matches", "progress"].includes(section);
+  if (playerOnly && user.role === "ADMIN") redirect("/app/admin");
+  if (playerOnly && approvedOwner) redirect("/app/owner");
+  if (section === "payments" && !scope && user.role === "ADMIN")
+    redirect("/app/payments?scope=admin");
+  if (section === "payments" && !scope && approvedOwner)
+    redirect("/app/payments?scope=owner");
+  if (section === "wallet" && !scope && user.role === "ADMIN")
+    redirect("/app/wallet?scope=admin");
   const adminArea =
     section === "admin" || section === "moderation" || scope === "admin";
   const ownerArea =
@@ -53,16 +67,8 @@ export default async function Page({
   }
 
   if (ownerArea) {
-    if (user.role === "ADMIN") {
-      if (!user.twoFactorEnabled && !isDemoAdministrator(user)) {
-        redirect("/app/settings?notice=mfa-required");
-      }
-    } else {
-      const memberships = await db.membership.count({
-        where: { userId: user.id, organization: { status: "APPROVED" } },
-      });
-      if (!memberships) redirect("/app/access-denied?area=owner");
-    }
+    if (user.role === "ADMIN") redirect("/app/admin");
+    if (!approvedOwner) redirect("/app/access-denied?area=owner");
   }
 
   if (section === "access-denied") {

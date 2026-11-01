@@ -21,6 +21,7 @@ export default async function Layout({
   const owner = await db.membership.count({
     where: { userId: user.id, organization: { status: "APPROVED" } },
   });
+  const appRole = user.role === "ADMIN" ? "ADMIN" : owner ? "OWNER" : "PLAYER";
   return (
     <div className="shell">
       <a href="#main-content" className="skip-link">
@@ -33,10 +34,7 @@ export default async function Layout({
         <p className="muted">
           <small>Find your game</small>
         </p>
-        <AppNavigation
-          owner={owner > 0 || user.role === "ADMIN"}
-          admin={user.role === "ADMIN"}
-        />
+        <AppNavigation role={appRole} />
       </aside>
       <main className="content" id="main-content">
         <header className="topbar">
