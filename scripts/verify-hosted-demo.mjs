@@ -92,9 +92,15 @@ for (const { role, email, password } of credentials) {
     if (role === "admin") {
       const records = await forbidden.json();
       assert.ok(
-        records.organizations.every((o) => o.id === "hosted-demo-20261015-org"),
+        records.organizations.every((o) =>
+          [
+            "hosted-demo-20261015-org",
+            "hosted-demo-20261015-month-v2-org-1",
+            "hosted-demo-20261015-month-v2-org-2",
+          ].includes(o.id),
+        ),
       );
-      assert.equal(records.users.length, 3);
+      assert.ok(records.users.length >= 28);
       assert.equal(records.readOnly, true);
       assert.ok(
         records.users.every((user) =>
@@ -114,7 +120,7 @@ for (const { role, email, password } of credentials) {
       assert.equal(dashboard.status, 200);
       assert.ok(
         (await dashboard.json()).venues.every((v) =>
-          v.id.startsWith("hosted-demo-20261015-month-v1"),
+          v.id.startsWith("hosted-demo-20261015-month-"),
         ),
       );
     }

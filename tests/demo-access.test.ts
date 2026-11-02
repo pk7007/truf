@@ -3,14 +3,17 @@ vi.mock("../src/server/auth", () => ({ auth: {} }));
 vi.mock("../src/server/db", () => ({ db: {} }));
 import { admin, reportScope } from "../src/server/access";
 import { portalDestination } from "../src/lib/login-portals";
-import { DEMO_ORGANIZATION, isDemoAdministrator } from "../src/lib/demo-access";
+import {
+  DEMO_ORGANIZATIONS,
+  isDemoAdministrator,
+} from "../src/lib/demo-access";
 const demo = {
   id: "hosted-demo-20261015-admin",
   role: "ADMIN",
   twoFactorEnabled: false,
 };
 test("demo administrator can view only its demo organization without MFA", async () => {
-  expect(await reportScope(demo)).toEqual([DEMO_ORGANIZATION]);
+  expect(await reportScope(demo)).toEqual(DEMO_ORGANIZATIONS);
   expect(portalDestination("admin", demo, false)).toBe("/app/admin");
   await expect(admin(demo)).rejects.toThrow();
 });

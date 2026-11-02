@@ -103,7 +103,7 @@ function ExcelButton({
   );
 }
 function Chart({ data, context }: { data: ChartData; context: ExportContext }) {
-  const currency = data.id === "cash";
+  const currency = ["cash", "wallet-cash"].includes(data.id);
   const formatValue = (value: unknown) =>
     currency
       ? new Intl.NumberFormat("en-IN", {
@@ -527,7 +527,19 @@ export function Reports({ view }: { view: "player" | "owner" | "admin" }) {
               <div className="stats">
                 {[
                   ["Bookings", String(data.summary.bookings)],
-                  ["Gross collections", money(data.summary.capturedPaise)],
+                  ["Provider collections", money(data.summary.capturedPaise)],
+                  [
+                    "Wallet booking spending",
+                    money(data.summary.walletBookingsPaise || 0),
+                  ],
+                  [
+                    "Wallet refunds",
+                    money(data.summary.walletRefundsPaise || 0),
+                  ],
+                  [
+                    "Wallet settlements",
+                    money(data.summary.walletSettlementsPaise || 0),
+                  ],
                   ["Completed refunds", money(data.summary.refundedPaise)],
                   ["Net collections", money(data.summary.netPaise)],
                   ["Provider fees", money(data.summary.providerFeesPaise)],

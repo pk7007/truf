@@ -373,6 +373,7 @@ suite("database booking and tenant isolation", () => {
     const result = await analytics(owner, new URLSearchParams("view=owner"));
     expect(result.venues.length).toBe(1);
     expect(result.charts.map((c) => c.id)).toEqual([
+      "wallet-cash",
       "bookings",
       "cash",
       "utilization",

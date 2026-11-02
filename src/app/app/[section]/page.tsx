@@ -16,6 +16,7 @@ const recordSections = [
   "notifications",
   "venues",
   "owner-bookings",
+  "admin-bookings",
   "moderation",
   "settings",
   "access-denied",
@@ -53,7 +54,10 @@ export default async function Page({
   if (section === "wallet" && !scope && user.role === "ADMIN")
     redirect("/app/wallet?scope=admin");
   const adminArea =
-    section === "admin" || section === "moderation" || scope === "admin";
+    section === "admin" ||
+    section === "admin-bookings" ||
+    section === "moderation" ||
+    scope === "admin";
   const ownerArea =
     ["owner", "owner-bookings", "venues"].includes(section) ||
     scope === "owner";

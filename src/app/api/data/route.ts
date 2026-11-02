@@ -1,7 +1,7 @@
 import { reportRange } from "@/lib/report-range";
 import { Prisma } from "@prisma/client";
 import { currentUser, reportScope, admin, AppError } from "@/server/access";
-import { DEMO_ORGANIZATION, isDemoAdministrator } from "@/lib/demo-access";
+import { DEMO_ORGANIZATIONS, isDemoAdministrator } from "@/lib/demo-access";
 import { canReadMatch } from "@/server/booking";
 import { db } from "@/server/db";
 import { walletWithdrawalSummary } from "@/server/wallet";
@@ -184,7 +184,7 @@ export async function GET(request: Request) {
       if (isDemoAdministrator(user))
         return Response.json({
           organizations: await db.organization.findMany({
-            where: { id: DEMO_ORGANIZATION },
+            where: { id: { in: DEMO_ORGANIZATIONS } },
             include: {
               venues: true,
               memberships: {
@@ -195,19 +195,13 @@ export async function GET(request: Request) {
           jobs: [],
           readOnly: true,
           audit: await db.auditLog.findMany({
-            where: { targetId: DEMO_ORGANIZATION },
+            where: { targetId: { in: DEMO_ORGANIZATIONS } },
             orderBy: { createdAt: "desc" },
             take: 30,
           }),
           users: await db.user.findMany({
             where: {
-              id: {
-                in: [
-                  "hosted-demo-20261015-player",
-                  "hosted-demo-20261015-owner",
-                  "hosted-demo-20261015-admin",
-                ],
-              },
+              id: { startsWith: "hosted-demo-20261015-" },
             },
             select: {
               id: true,
@@ -249,7 +243,12 @@ export async function GET(request: Request) {
         }),
       });
     }
-    const isOwner = view === "venues" || view === "owner-bookings",
+    if (view === "admin-bookings" && user.role !== "ADMIN")
+      throw new AppError(403, "Administrator access required.");
+    const isOwner =
+        view === "venues" ||
+        view === "owner-bookings" ||
+        view === "admin-bookings",
       orgs = isOwner ? await reportScope(user) : null;
     if (view === "venues")
       return Response.json(
@@ -336,16 +335,98 @@ export async function GET(request: Request) {
         orderBy: { capturedAt: "desc" },
         take: 100,
       });
-      if (payments.length || !user.id.startsWith("hosted-demo-20261015-"))
-        return Response.json(
-          payments.map((payment) => ({ ...payment, source: "Razorpay" })),
-        );
+      const participations = await db.participation.findMany({
+        where: {
+          ...(!ids && scope !== "admin" && scope !== "owner"
+            ? { userId: user.id }
+            : {}),
+          match: {
+            slot: {
+              area: {
+                ...(q.get("sport") ? { sport: q.get("sport")! } : {}),
+                ...(q.get("venue") ? { venueId: q.get("venue")! } : {}),
+                ...(ids ? { venue: { organizationId: { in: ids } } } : {}),
+              },
+            },
+          },
+        },
+        select: {
+          id: true,
+          userId: true,
+          match: { select: { id: true, title: true } },
+        },
+      });
+      const entries = await db.walletEntry.findMany({
+        where: {
+          referenceType: "PARTICIPATION",
+          referenceId: { in: participations.map((p) => p.id) },
+          type: { in: ["BOOKING", "REFUND"] },
+          status: "POSTED",
+        },
+        include: { wallet: { select: { userId: true } } },
+        orderBy: { createdAt: "desc" },
+      });
+      const members = new Map(participations.map((p) => [p.id, p]));
+      const refunds = new Map(
+        entries
+          .filter((entry) => entry.type === "REFUND")
+          .map((entry) => [entry.idempotencyKey, entry]),
+      );
+      const walletPayments = entries
+        .filter((entry) => entry.type === "BOOKING")
+        .flatMap((entry) => {
+          const participation = members.get(entry.referenceId);
+          if (!participation || participation.userId !== entry.wallet.userId)
+            return [];
+          const refund = refunds.get(
+            entry.idempotencyKey.replace(/^booking:/, "refund:"),
+          );
+          const inRange = (date: Date) =>
+            !range ||
+            ((!range.gte || date >= range.gte) &&
+              (!range.lt || date < range.lt));
+          if (
+            !inRange(entry.createdAt) &&
+            !(refund && inRange(refund.createdAt))
+          )
+            return [];
+          return [
+            {
+              id: entry.id,
+              capturedAt: entry.createdAt,
+              amountPaise: entry.amountPaise,
+              source: participation.userId.startsWith("hosted-demo-20261015-")
+                ? "Demo wallet · fictional"
+                : "TRUF Wallet",
+              refunds: refund
+                ? [
+                    {
+                      id: refund.id,
+                      amountPaise: refund.amountPaise,
+                      status: "COMPLETED",
+                      completedAt: refund.createdAt,
+                    },
+                  ]
+                : [],
+              order: { participation: { match: participation.match } },
+            },
+          ];
+        });
+      const history = [
+        ...payments.map((payment) => ({ ...payment, source: "Razorpay" })),
+        ...walletPayments,
+      ]
+        .sort((a, b) => +b.capturedAt - +a.capturedAt)
+        .slice(0, 100);
+      if (!user.id.startsWith("hosted-demo-20261015-"))
+        return Response.json(history);
 
       // Hosted presentation accounts use completed fictional matches instead
       // of provider records. This keeps payment history useful without
       // fabricating Razorpay collections in the financial tables.
       const demoMatches = await db.match.findMany({
         where: {
+          id: { notIn: history.map((row) => row.order.participation.match.id) },
           status: "COMPLETED",
           ...(range ? { completedAt: range } : {}),
           ...(ids
@@ -370,20 +451,27 @@ export async function GET(request: Request) {
         take: 30,
       });
       return Response.json(
-        demoMatches.map((match) => ({
-          id: `demo-history-${match.id}`,
-          providerPaymentId: `fictional-${match.id}`,
-          capturedAt:
-            match.confirmedAt || match.completedAt || new Date().toISOString(),
-          amountPaise: ids ? match.slot.pricePaise : match.sharePaise,
-          feePaise: 0,
-          refunds: [],
-          transfer: null,
-          source: "Demo wallet · fictional",
-          order: {
-            participation: { match: { id: match.id, title: match.title } },
-          },
-        })),
+        [
+          ...history,
+          ...demoMatches.map((match) => ({
+            id: `demo-history-${match.id}`,
+            providerPaymentId: `fictional-${match.id}`,
+            capturedAt:
+              match.confirmedAt ||
+              match.completedAt ||
+              new Date().toISOString(),
+            amountPaise: ids ? match.slot.pricePaise : match.sharePaise,
+            feePaise: 0,
+            refunds: [],
+            transfer: null,
+            source: "Demo wallet · fictional",
+            order: {
+              participation: { match: { id: match.id, title: match.title } },
+            },
+          })),
+        ]
+          .sort((a, b) => +new Date(b.capturedAt) - +new Date(a.capturedAt))
+          .slice(0, 100),
       );
     }
     const category = q.get("date"),

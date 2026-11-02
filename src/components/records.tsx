@@ -339,7 +339,9 @@ function WalletPanel({ data, done }: { data: WalletData; done: () => void }) {
   });
   function exportLedger() {
     const quote = (value: unknown) =>
-      `"${String(value ?? "").replaceAll('"', '""')}"`;
+      `"${String(value ?? "")
+        .replace(/^[=+@\-\t\r\n]/, "'$&")
+        .replaceAll('"', '""')}"`;
     const rows = [
       [
         "Date (IST)",
@@ -900,6 +902,7 @@ export function Records({
         "matches",
         "discover",
         "owner-bookings",
+        "admin-bookings",
         "notifications",
         "venues",
         "payments",
@@ -936,6 +939,7 @@ export function Records({
               notifications: "Stay in the loop.",
               venues: "Your venues & slots.",
               "owner-bookings": "Manage match days.",
+              "admin-bookings": "Booking records.",
               moderation: "Approvals & operations.",
               settings: "Account & security.",
             } as Record<string, string>

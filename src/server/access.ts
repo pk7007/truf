@@ -2,14 +2,14 @@ import { headers } from "next/headers";
 import { cache } from "react";
 import { auth } from "./auth";
 import { db } from "./db";
-import { DEMO_ORGANIZATION, isDemoAdministrator } from "@/lib/demo-access";
+import { DEMO_ORGANIZATIONS, isDemoAdministrator } from "@/lib/demo-access";
 // Reporting only: never use this helper to authorize mutations.
 export async function reportScope(user: {
   id: string;
   role: string;
   twoFactorEnabled: boolean;
 }) {
-  return isDemoAdministrator(user) ? [DEMO_ORGANIZATION] : ownerScope(user);
+  return isDemoAdministrator(user) ? DEMO_ORGANIZATIONS : ownerScope(user);
 }
 export class AppError extends Error {
   constructor(

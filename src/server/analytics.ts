@@ -81,6 +81,35 @@ export async function analytics(user: User, params: URLSearchParams) {
     include: { refunds: true, transfer: true },
   });
   const inRange = (d: Date) => d >= start && d < end;
+  const walletEntries = await db.walletEntry.findMany({
+    where: {
+      status: "POSTED",
+      createdAt: { gte: start, lt: end },
+      ...(isPlayer ? { wallet: { userId: user.id } } : {}),
+      OR: [
+        {
+          referenceType: "PARTICIPATION",
+          referenceId: {
+            in: matches.flatMap((m) =>
+              m.participations
+                .filter((p) => !isPlayer || p.userId === user.id)
+                .map((p) => p.id),
+            ),
+          },
+          type: { in: ["BOOKING", "REFUND"] },
+        },
+        ...(!isPlayer
+          ? [
+              {
+                referenceType: "MATCH",
+                referenceId: { in: matchIds },
+                type: "SETTLEMENT",
+              },
+            ]
+          : []),
+      ],
+    },
+  });
   const buckets: Record<string, Record<string, string | number>> = {};
   for (let at = +start; at < +end; at += 86400000) {
     const day = istDay(new Date(at));
@@ -93,6 +122,9 @@ export async function analytics(user: User, params: URLSearchParams) {
       Registered: 0,
       Attended: 0,
       Minutes: 0,
+      WalletBookings: 0,
+      WalletRefunds: 0,
+      WalletSettlements: 0,
     };
   }
   for (const m of matches) {
@@ -111,6 +143,16 @@ export async function analytics(user: User, params: URLSearchParams) {
       if (r.completedAt && inRange(r.completedAt))
         buckets[istDay(r.completedAt)].Refunded =
           Number(buckets[istDay(r.completedAt)].Refunded) + r.amountPaise / 100;
+  }
+  for (const entry of walletEntries) {
+    const key =
+      entry.type === "BOOKING"
+        ? "WalletBookings"
+        : entry.type === "REFUND"
+          ? "WalletRefunds"
+          : "WalletSettlements";
+    buckets[istDay(entry.createdAt)][key] =
+      Number(buckets[istDay(entry.createdAt)][key]) + entry.amountPaise / 100;
   }
   const played = matches.flatMap((m) =>
     m.participations
@@ -140,7 +182,11 @@ export async function analytics(user: User, params: URLSearchParams) {
     basis: string,
     series: string[],
     rows: ChartData["rows"],
-    href = isPlayer ? "/app/matches" : "/app/owner-bookings",
+    href = isPlayer
+      ? "/app/matches"
+      : view === "admin"
+        ? "/app/admin-bookings"
+        : "/app/owner-bookings",
   ): ChartData => ({
     id,
     title,
@@ -149,7 +195,7 @@ export async function analytics(user: User, params: URLSearchParams) {
     series,
     rows:
       interval !== "day" &&
-      ["bookings", "cash", "growth", "status"].includes(id)
+      ["bookings", "cash", "wallet-cash", "growth", "status"].includes(id)
         ? Object.values(
             rows.reduce<Record<string, Record<string, string | number>>>(
               (acc, row) => {
@@ -186,6 +232,19 @@ export async function analytics(user: User, params: URLSearchParams) {
   const daily = Object.values(buckets),
     scheduled = matches.filter((m) => inRange(m.slot.startsAt));
   const charts: ChartData[] = [];
+  charts.push(
+    chart(
+      "wallet-cash",
+      "Wallet bookings, refunds and settlements",
+      "bar",
+      "Wallet ledger entry date · INR · demo funds are fictional; excludes wallet funding",
+      isPlayer
+        ? ["WalletBookings", "WalletRefunds"]
+        : ["WalletBookings", "WalletRefunds", "WalletSettlements"],
+      daily,
+      "/app/payments" + (isPlayer ? "" : "?scope=" + view),
+    ),
+  );
   if (isPlayer) {
     charts.push(
       chart(
@@ -471,6 +530,15 @@ export async function analytics(user: User, params: URLSearchParams) {
     demo: localMode() || user.id.startsWith("hosted-demo-20261015-"),
     summary: {
       bookings: scheduled.length,
+      walletBookingsPaise: walletEntries
+        .filter((e) => e.type === "BOOKING")
+        .reduce((sum, e) => sum + e.amountPaise, 0),
+      walletRefundsPaise: walletEntries
+        .filter((e) => e.type === "REFUND")
+        .reduce((sum, e) => sum + e.amountPaise, 0),
+      walletSettlementsPaise: walletEntries
+        .filter((e) => e.type === "SETTLEMENT")
+        .reduce((sum, e) => sum + e.amountPaise, 0),
       capturedPaise: captured,
       refundedPaise: refunded,
       netPaise: captured - refunded,
