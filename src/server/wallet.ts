@@ -67,8 +67,14 @@ export async function refundWalletParticipation(
   userId: string,
   reason: string,
 ) {
-  const debit = await tx.walletEntry.findUnique({
-    where: { idempotencyKey: "booking:" + participationId },
+  const debit = await tx.walletEntry.findFirst({
+    where: {
+      referenceType: "PARTICIPATION",
+      referenceId: participationId,
+      type: "BOOKING",
+      wallet: { userId },
+    },
+    orderBy: { createdAt: "desc" },
   });
   if (!debit) return false;
   await postWalletEntry(tx, {
@@ -79,7 +85,7 @@ export async function refundWalletParticipation(
     referenceType: "PARTICIPATION",
     referenceId: participationId,
     description: reason,
-    idempotencyKey: "refund:" + participationId,
+    idempotencyKey: debit.idempotencyKey.replace(/^booking:/, "refund:"),
   });
   return true;
 }

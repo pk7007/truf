@@ -54,8 +54,28 @@ export async function processJob(job: Job) {
             referenceId: { in: m.participations.map((member) => member.id) },
           },
         });
+        const refunded = await tx.walletEntry.findMany({
+          where: {
+            type: "REFUND",
+            idempotencyKey: {
+              in: walletDebits.map((entry) =>
+                entry.idempotencyKey.replace(/^booking:/, "refund:"),
+              ),
+            },
+          },
+          select: { idempotencyKey: true },
+        });
+        const refundedKeys = new Set(
+          refunded.map((entry) => entry.idempotencyKey),
+        );
         const settlement = walletDebits.reduce(
-          (sum, entry) => sum + entry.amountPaise,
+          (sum, entry) =>
+            sum +
+            (refundedKeys.has(
+              entry.idempotencyKey.replace(/^booking:/, "refund:"),
+            )
+              ? 0
+              : entry.amountPaise),
           0,
         );
         if (owner && settlement > 0)

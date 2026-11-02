@@ -36,6 +36,7 @@ type Venue = {
   areas: { id: string; name: string; sport: string; slots: Slot[] }[];
 };
 export type RecordsData = {
+  readOnly?: boolean;
   matches?: Match[];
   slots?: Slot[];
   name?: string;
@@ -1191,9 +1192,13 @@ export function Records({
                   ]}
                   done={done}
                 />
-                {info.role !== "ADMIN" && info.accountType !== "OWNER" && (
+                {info.role !== "ADMIN" && !info.memberships?.length && (
                   <ActionForm
-                    title="Apply as a turf owner"
+                    title={
+                      info.accountType === "OWNER"
+                        ? "Register your turf business"
+                        : "Apply as a turf owner"
+                    }
                     kind="organization"
                     fields={[{ name: "name", label: "Business name" }]}
                     done={done}
@@ -1349,7 +1354,7 @@ export function Records({
                   <article className="card" key={o.id}>
                     <h3>{o.name}</h3>
                     <p>{o.status}</p>
-                    {o.status === "PENDING" && (
+                    {o.status === "PENDING" && !info.readOnly && (
                       <ActionButton
                         body={{ action: "approve-organization", id: o.id }}
                         done={done}
@@ -1362,6 +1367,8 @@ export function Records({
                         {v.name}{" "}
                         {v.approved ? (
                           "· Approved"
+                        ) : info.readOnly ? (
+                          "· Awaiting approval"
                         ) : (
                           <ActionButton
                             body={{ action: "approve-venue", id: v.id }}
@@ -1389,16 +1396,18 @@ export function Records({
               {info.users?.map((u) => (
                 <p key={u.id}>
                   {u.name} · {u.email}{" "}
-                  <ActionButton
-                    body={{
-                      action: "suspend",
-                      id: u.id,
-                      suspended: !u.suspended,
-                    }}
-                    done={done}
-                  >
-                    {u.suspended ? "Restore account" : "Suspend"}
-                  </ActionButton>
+                  {!info.readOnly && (
+                    <ActionButton
+                      body={{
+                        action: "suspend",
+                        id: u.id,
+                        suspended: !u.suspended,
+                      }}
+                      done={done}
+                    >
+                      {u.suspended ? "Restore account" : "Suspend"}
+                    </ActionButton>
+                  )}
                 </p>
               ))}
               <details>

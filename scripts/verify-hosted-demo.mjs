@@ -94,7 +94,13 @@ for (const { role, email, password } of credentials) {
       assert.ok(
         records.organizations.every((o) => o.id === "hosted-demo-20261015-org"),
       );
-      assert.equal(records.users.length, 0);
+      assert.equal(records.users.length, 3);
+      assert.equal(records.readOnly, true);
+      assert.ok(
+        records.users.every((user) =>
+          user.id.startsWith("hosted-demo-20261015-"),
+        ),
+      );
       const readOnly = await fetch(base + "/api/actions", {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },

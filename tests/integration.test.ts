@@ -206,6 +206,20 @@ suite("database booking and tenant isolation", () => {
         where: { referenceId: participation.id },
       }),
     ).toBe(2);
+    await walletCheckout(player, m.id);
+    expect(
+      (await db.wallet.findUniqueOrThrow({ where: { userId: player.id } }))
+        .balancePaise,
+    ).toBe(before.balancePaise - m.sharePaise);
+    await expect(walletCheckout(player, m.id)).rejects.toThrow();
+    await withdraw(player, m.id);
+    expect(
+      (await db.wallet.findUniqueOrThrow({ where: { userId: player.id } }))
+        .balancePaise,
+    ).toBe(before.balancePaise);
+    expect(
+      await db.walletEntry.count({ where: { referenceId: participation.id } }),
+    ).toBe(4);
   });
   it("settles completed wallet bookings to the turf owner", async () => {
     await serial(async (tx) => {

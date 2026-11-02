@@ -193,8 +193,30 @@ export async function GET(request: Request) {
             },
           }),
           jobs: [],
-          audit: [],
-          users: [],
+          readOnly: true,
+          audit: await db.auditLog.findMany({
+            where: { targetId: DEMO_ORGANIZATION },
+            orderBy: { createdAt: "desc" },
+            take: 30,
+          }),
+          users: await db.user.findMany({
+            where: {
+              id: {
+                in: [
+                  "hosted-demo-20261015-player",
+                  "hosted-demo-20261015-owner",
+                  "hosted-demo-20261015-admin",
+                ],
+              },
+            },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              suspended: true,
+              role: true,
+            },
+          }),
         });
       await admin(user);
       return Response.json({

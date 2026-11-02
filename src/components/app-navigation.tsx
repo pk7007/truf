@@ -32,6 +32,11 @@ export function AppNavigation({
     ],
     OWNER: [
       {
+        href: "/app/owner-bookings",
+        label: "Match requests",
+        icon: CalendarDays,
+      },
+      {
         href: "/app/owner",
         label: "Owner overview",
         icon: ChartNoAxesCombined,

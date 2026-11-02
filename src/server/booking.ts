@@ -339,8 +339,12 @@ export async function walletCheckout(user: User, id: string, token?: string) {
           (x) => x.replacementFor === p.id && x.status === "PAID",
         ),
     );
-    const active = m.participations.filter((p) =>
-      ["PAID", "WAITING_REPLACEMENT"].includes(p.status),
+    const active = m.participations.filter(
+      (p) =>
+        ["PAID", "WAITING_REPLACEMENT"].includes(p.status) ||
+        (p.status === "CHECKOUT" &&
+          p.reservedUntil &&
+          p.reservedUntil > new Date()),
     ).length;
     if (
       (active >= m.capacity && !waiting) ||
@@ -362,6 +366,13 @@ export async function walletCheckout(user: User, id: string, token?: string) {
         replacementFor: waiting?.id || null,
       },
     });
+    const previousDebits = await tx.walletEntry.count({
+      where: {
+        referenceType: "PARTICIPATION",
+        referenceId: participation.id,
+        type: "BOOKING",
+      },
+    });
     await postWalletEntry(tx, {
       userId: user.id,
       type: "BOOKING",
@@ -370,7 +381,10 @@ export async function walletCheckout(user: User, id: string, token?: string) {
       referenceType: "PARTICIPATION",
       referenceId: participation.id,
       description: m.title + " · booking share",
-      idempotencyKey: "booking:" + participation.id,
+      idempotencyKey:
+        "booking:" +
+        participation.id +
+        (previousDebits ? ":" + previousDebits : ""),
     });
     if (waiting) {
       const previous = await tx.participation.findUniqueOrThrow({
